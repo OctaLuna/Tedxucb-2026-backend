@@ -13,7 +13,7 @@ explícitas de qué fila y qué entrada de bitácora le corresponde (ver
 
 | Feature | Spec | Plan | Tasks | Implementación |
 |---|---|---|---|---|
-| `001` — Identidad y usuarios | ✅ | ⏳ pendiente | ⏳ pendiente | ⏳ pendiente |
+| `001` — Identidad y usuarios | ✅ | ✅ | ✅ | ⏳ pendiente |
 | `002` — Sitio público | ✅ | ⏳ pendiente | ⏳ pendiente | ⏳ pendiente |
 | `003` — Motor de puntos | ✅ | ✅ | ✅ | ⏳ pendiente |
 | `004` — Selección de cupos | ✅ | ⏳ pendiente | ⏳ pendiente | ⏳ pendiente |
@@ -25,7 +25,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | # | Prompt | Módulo | Estado | Commit | Pruebas |
 |---|---|---|---|---|---|
 | 00 | `00-bootstrap-infraestructura.md` | Infraestructura base (NestJS, Prisma, Docker) | ✅ hecho | `45323e8` | Jest: 3/3 · Playwright: 1/1 |
-| 001-a | `001-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Identidad | ⏳ pendiente | — | — |
+| 001-a | `001-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Identidad | ✅ hecho | `75697a6` | — (documental) |
 | 001-b | `001-b-implementacion-identidad.md` | Implementación — Identidad | ⏳ pendiente | — | — |
 | 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ⏳ pendiente | — | — |
 | 002-b | `002-b-implementacion-sitio-publico.md` | Implementación — Sitio público | ⏳ pendiente | — | — |
@@ -41,6 +41,32 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-08-31 — `001-a-clarify-plan-tasks`
+
+Resueltos los 7 marcadores `[NECESITA CLARIFICACIÓN]` reales de `spec.md`
+(el checklist decía 8; desfase corregido). Decisiones: corrección de correo
+solo por el administrador; RF-108 vigencia de 7 días; RF-123 dominio
+`@ucb.edu.bo`; RF-105 eliminado y RF-125 redactado sin padrón institucional
+(no existe — ver **ADR-007**); RF-110 sin campo de restricciones
+alimentarias; RF-128 con texto de consentimiento configurable y versionado
+por el admin; RF-121 con retención indefinida.
+
+Diseñado el ciclo técnico completo: `plan.md` valida y amplía la hipótesis
+de 2 módulos a **3** (`auth`, `users`, `profiles` — `auth` se separa por ser
+un dominio técnico distinto, mismo precedente que `points`/`activities` en
+`003`); `data-model.md` con 9 entidades (`users`, `user_roles`,
+`auth_tokens` unificada con discriminador de tipo, `student_profiles` sin
+duplicar `total_points` de `003`, `faculties`, `careers`,
+`consent_versions`, `consent_acceptances`, `audit_log`); 4 archivos de
+`contracts/` (el de auto-registro y verificación, el de mayor riesgo de
+fraude, con el mismo nivel de detalle que `checkin.md` de `003`); `tasks.md`
+con 9 grupos, `T001` a `T094`.
+
+- Sin pruebas de módulo — prompt puramente documental (no hay código
+  todavía).
+- Commit: `75697a6` (docs de identidad; este cierre de `progress.md` va en
+  el commit siguiente).
 
 ### 2026-08-31 — `00-bootstrap-infraestructura`
 
