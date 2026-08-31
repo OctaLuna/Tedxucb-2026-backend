@@ -4,9 +4,47 @@
   "private": true,
   "description": "Backend (API) de TEDxUCB — motor de puntos, identidad, sitio público y selección de cupos.",
   "scripts": {
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "build": "nest build",
+    "test": "jest",
     "test:e2e": "playwright test"
   },
+  "dependencies": {
+    "@nestjs/bullmq": "^12.0.0",
+    "@nestjs/common": "^12.0.1",
+    "@nestjs/config": "^12.0.0",
+    "@nestjs/core": "^12.0.1",
+    "@nestjs/platform-express": "^12.0.1",
+    "@prisma/client": "7.10.0",
+    "bullmq": "^6.3.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.5.4"
+  },
   "devDependencies": {
-    "@playwright/test": "^1.48.0"
+    "@nestjs/cli": "^12.0.0",
+    "@nestjs/testing": "^12.0.1",
+    "@playwright/test": "^1.48.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.13.3",
+    "jest": "^30.5.0",
+    "prisma": "7.10.0",
+    "ts-jest": "^29.4.12",
+    "ts-node": "^10.9.2",
+    "typescript": "5.9.3"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": ".",
+    "roots": ["<rootDir>/src", "<rootDir>/tests"],
+    "testRegex": ".*\\.spec\\.ts$",
+    "testPathIgnorePatterns": ["/node_modules/", "/tests/e2e/"],
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    }
   }
 }
