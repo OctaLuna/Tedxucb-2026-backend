@@ -4,9 +4,6 @@ import { defineConfig } from '@playwright/test';
  * Pruebas E2E por módulo: HTTP puro contra la API vía el fixture `request`
  * de Playwright, sin navegador. Complementan (no reemplazan) las pruebas de
  * contrato/integración/unitarias de Jest que exige la skill `pruebas`.
- *
- * `webServer` se activa en el prompt 00-bootstrap-infraestructura, una vez
- * exista `npm run start` (servidor NestJS real).
  */
 export default defineConfig({
   testDir: './tests/e2e',
@@ -18,5 +15,11 @@ export default defineConfig({
     extraHTTPHeaders: {
       'Content-Type': 'application/json',
     },
+  },
+  webServer: {
+    command: 'npm run start',
+    url: 'http://localhost:3000/api/v1/health',
+    reuseExistingServer: !process.env.CI,
+    timeout: 60_000,
   },
 });
