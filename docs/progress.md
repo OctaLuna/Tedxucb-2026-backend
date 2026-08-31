@@ -24,7 +24,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 
 | # | Prompt | Módulo | Estado | Commit | Pruebas |
 |---|---|---|---|---|---|
-| 00 | `00-bootstrap-infraestructura.md` | Infraestructura base (NestJS, Prisma, Docker) | ⏳ pendiente | — | — |
+| 00 | `00-bootstrap-infraestructura.md` | Infraestructura base (NestJS, Prisma, Docker) | ✅ hecho | `45323e8` | Jest: 3/3 · Playwright: 1/1 |
 | 001-a | `001-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Identidad | ⏳ pendiente | — | — |
 | 001-b | `001-b-implementacion-identidad.md` | Implementación — Identidad | ⏳ pendiente | — | — |
 | 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ⏳ pendiente | — | — |
@@ -42,4 +42,31 @@ _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
 
-Sin entradas todavía.
+### 2026-08-31 — `00-bootstrap-infraestructura`
+
+Bootstrap del proyecto NestJS + Prisma + Docker Compose (Postgres 16 / Redis
+7). Config tipada y validada al arrancar con `zod` (Artículo V: la app se
+niega a arrancar si falta `DATABASE_URL`, `REDIS_URL` o `JWT_SECRET`, con
+mensaje que nombra la variable — verificado a mano quitando `DATABASE_URL`
+de `.env`: la app sale con código 1 y un mensaje explícito). Endpoint
+`GET /api/v1/health` como sonda, en un `HealthModule` dedicado. Carpetas
+`tests/{contract,integration,unit}` creadas. `playwright.config.ts` con
+`webServer` para que `npm run test:e2e` levante el servidor solo si hace
+falta.
+
+Desvío respecto al plan original: Prisma 7.10.0 (la última versión estable
+real — el dist-tag `latest` es una release candidate 8.0.0) ya no admite
+`url` dentro de `datasource` en `schema.prisma`; requiere un `prisma.config.ts`
+nuevo en la raíz con la URL de conexión. Se agregó ese archivo (no estaba en
+la lista original de archivos a crear) y se ajustó `schema.prisma` en
+consecuencia. `npx prisma generate` corrido y verificado sin necesitar
+Postgres arriba.
+
+- Jest: 3/3 (`tests/unit/config/env-validation.spec.ts`).
+- Playwright: 1/1 (`tests/e2e/health.e2e.spec.ts`).
+- `docker compose up -d`: ambos servicios (`postgres`, `redis`) `healthy`,
+  dejados arriba para que `001-b` los use de inmediato.
+- Commits: `45323e8` (bootstrap), `c4b8a11` (prueba unitaria de config),
+  `4d2c113` (smoke test de salud).
+
+Sin entradas anteriores.
