@@ -1,0 +1,12 @@
+{
+  "name": "ted-backend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Backend (API) de TEDxUCB — motor de puntos, identidad, sitio público y selección de cupos.",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}

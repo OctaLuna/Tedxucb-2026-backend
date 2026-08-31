@@ -11,3 +11,6 @@ coverage/
 .vscode/
 *.tmp
 .claude/*.lock
+playwright-report/
+test-results/
+blob-report/

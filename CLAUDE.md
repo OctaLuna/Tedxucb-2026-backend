@@ -57,7 +57,8 @@ CLAUDE.md              Este archivo
 memory/constitution.md Principios no negociables — léelo antes del primer commit
 specs/                 Las cuatro features, con sus planes y contratos
 .claude/skills/        Skills propias del proyecto (ver abajo)
-docs/                  Arquitectura, glosario, decisiones, operación
+docs/                  Arquitectura, glosario, decisiones, operación, progress.md
+prompts/               Prompts de implementación en orden — ver prompts/README.md
 prisma/ src/ tests/    Código del backend (aún no iniciado) — directo en la raíz
 ```
 

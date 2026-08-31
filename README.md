@@ -36,10 +36,11 @@ specs/                 Las cuatro features (SDD)
   004-seleccion-de-cupos/
 .claude/skills/        Skills propias del proyecto
 docs/
-  arquitectura.md      glosario.md       onboarding.md
+  arquitectura.md      glosario.md       onboarding.md       progress.md
   operacion-dia-del-evento.md            analisis-sdd.md
   decisiones/          ADR
   legacy/              Documento previo a SDD
+prompts/               Prompts de implementación en orden — ver prompts/README.md
 prisma/ src/ tests/    Código del backend (aún no iniciado) — directo en la raíz
 ```
 
