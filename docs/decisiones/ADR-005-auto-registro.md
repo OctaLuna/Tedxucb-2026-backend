@@ -15,9 +15,10 @@ autenticación federada con la cuenta institucional.
 
 Como contrapartida obligatoria, se incorpora un bloque de verificación: la cuenta
 nace **pendiente** y **no acumula puntos** hasta verificarse. Restricción por
-dominio institucional, verificación de titularidad del correo, validación del
-código de registro contra el padrón cuando exista, y revisión por el
-administrador.
+dominio institucional, verificación de titularidad del correo, y revisión por
+el administrador. (La validación contra un padrón institucional quedó aquí
+como condicional — "cuando exista"; se confirmó que no existe y se retiró
+formalmente, ver [ADR-007](ADR-007-no-existe-padron-institucional.md).)
 
 El staff **no** se auto-registra: es un rol de confianza que otorga puntos.
 

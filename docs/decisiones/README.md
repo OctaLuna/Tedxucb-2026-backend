@@ -12,6 +12,7 @@ descartaron.
 | [004](ADR-004-ranking-puro.md) | Ranking puro por puntos, sin cuota por facultad | 2026-08-30 |
 | [005](ADR-005-auto-registro.md) | Auto-registro de alumnos con verificación | 2026-08-30 |
 | [006](ADR-006-repositorio-solo-backend.md) | Este repositorio es exclusivamente el backend | 2026-08-30 |
+| [007](ADR-007-no-existe-padron-institucional.md) | No existe padrón institucional: la revisión manual reemplaza la validación automática | 2026-08-30 |
 
 ## Formato
 

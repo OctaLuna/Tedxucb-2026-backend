@@ -24,7 +24,7 @@ specs/
 
 | ID | Feature | Depende de | Estado |
 |---|---|---|---|
-| `001` | Identidad, usuarios y perfiles | — | spec ✅ · plan ⏳ · tasks ⏳ |
+| `001` | Identidad, usuarios y perfiles | — | spec ✅ · plan ✅ · tasks ✅ |
 | `002` | Sitio público TEDxUCB | 001 (parcial) | spec ✅ · plan ⏳ · tasks ⏳ |
 | `003` | Motor de puntos y participación | 001 | spec ✅ · plan ✅ · tasks ✅ |
 | `004` | Selección y gestión de cupos | 003 | spec ✅ · plan ⏳ · tasks ⏳ |
@@ -49,9 +49,9 @@ speakers mientras el resto se construye.
 |---|---|
 | Constitution | ✅ `memory/constitution.md` |
 | Specify | ✅ 4 specs redactados |
-| Clarify | 🟡 Ronda 1 completada — **34 marcadores abiertos** (001: 8 · 002: 6 · 003: 10 · 004: 10) |
-| Plan | 🟡 Solo `003` |
-| Tasks | 🟡 Solo `003` |
+| Clarify | 🟡 Ronda 1 completada — **27 marcadores abiertos** (001: 0 ✅ · 002: 6 · 003: 10 · 004: 10) |
+| Plan | 🟡 `001` y `003` |
+| Tasks | 🟡 `001` y `003` |
 | Analyze | ✅ `docs/analisis-sdd.md` |
 | Implement | ⛔ Bloqueada |
 
@@ -64,11 +64,22 @@ speakers mientras el resto se construye.
 | 2026-08-30 | RF-407 | Ranking puro por puntos, sin cuota por facultad. El sistema reporta la distribución resultante |
 | 2026-08-30 | RF-401 | El número de cupos es configurable; 100/80 es estimación, no constante |
 | 2026-08-30 | RF-109 | Auto-registro de alumnos con credenciales propias, no autenticación federada |
+| 2026-08-31 | Corrección de correo | Solo el administrador puede cambiar el correo de un alumno ya activo, a solicitud del alumno, con re-verificación |
+| 2026-08-31 | RF-108 | 7 días de vigencia para invitaciones, verificación y recuperación |
+| 2026-08-31 | RF-123 | Dominio institucional `@ucb.edu.bo` — todos los alumnos activos tienen correo de ese dominio |
+| 2026-08-31 | RF-105 / RF-125 | No existe padrón institucional exportable: se elimina RF-105, RF-125 se redacta sin validación automática contra padrón (ver ADR-007) |
+| 2026-08-31 | RF-110 | No habrá servicio de alimentos: se elimina el campo "restricciones alimentarias" |
+| 2026-08-31 | RF-128 | No existe texto de consentimiento aprobado: el sistema soporta un texto configurable y versionado por el administrador |
+| 2026-08-31 | RF-121 | Retención indefinida de datos personales — no hay eliminación/anonimización automática |
 
 La decisión de auto-registro **abrió más preguntas de las que cerró**: al dejar
 de controlar la organización quién entra al sistema, aparecieron seis requisitos
 nuevos de verificación de identidad (RF-122 a RF-128). Es el comportamiento
-esperado de la fase Clarify y por eso el conteo de marcadores no bajó.
+esperado de la fase Clarify y por eso el conteo de marcadores no bajó de
+inmediato. La ronda de clarificación del 2026-08-31 resolvió los 7 marcadores
+reales que quedaban abiertos en `001` (spec ✅ plan ✅ tasks ✅) — de paso
+confirmó que el "padrón institucional" no existe, lo que llevó a
+[ADR-007](../docs/decisiones/README.md).
 
 ## Reglas del repositorio
 

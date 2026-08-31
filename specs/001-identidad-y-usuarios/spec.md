@@ -1,7 +1,8 @@
 # Especificación: Identidad, usuarios y perfiles
 
 **Rama/ID:** `001-identidad-y-usuarios`
-**Estado:** Borrador — pendiente de clarificación
+**Estado:** Clarificado — plan y tasks completos (`plan.md`, `data-model.md`,
+`contracts/`, `tasks.md`)
 **Entrada:** "Necesito crear perfiles para los alumnos donde cada uno tenga su avatar, y también las actividades que realizaron. También un perfil de monitoreo donde vea el progreso de todos los alumnos, pueda crear el perfil de alumnos. […] aún no pensé los perfiles o sea los tipos de usuarios digamos alumnos, los que dan los puntos […] y el que los administra como el admin que es quien crea los perfiles de cada uno para que funcione correctamente"
 
 ## Contexto
@@ -21,6 +22,29 @@ Decisiones tomadas por el responsable del proyecto:
   verificación de identidad (RF-122 a RF-127) que antes no era necesario.
 - **2026-08-30 — Autenticación con credenciales propias del sistema**, no
   federada con la cuenta institucional.
+- **2026-08-31 — Corrección del correo de un alumno ya activo: solo el
+  administrador.** El alumno se lo solicita (RF-112a); el nuevo correo exige
+  re-verificación antes de tomar efecto.
+- **2026-08-31 — RF-108: 7 días de vigencia** para invitaciones, enlaces de
+  verificación y de recuperación.
+- **2026-08-31 — RF-123: dominio institucional `@ucb.edu.bo`.** Todos los
+  alumnos activos de la UCB tienen correo de ese dominio.
+- **2026-08-31 — No existe padrón institucional exportable (ver ADR-007).**
+  Se elimina RF-105. RF-125 se redacta sin validación automática contra
+  padrón: las barreras contra fraude quedan en el dominio del correo
+  (RF-123), la verificación de titularidad (RF-124), la unicidad permanente
+  de correo y código de registro (RF-106) y la revisión manual del
+  administrador (RF-126).
+- **2026-08-31 — RF-110: no habrá servicio de alimentos.** Se elimina el
+  campo "restricciones alimentarias" del perfil de alumno.
+- **2026-08-31 — RF-128: no existe todavía un texto de consentimiento
+  aprobado por la universidad.** El sistema debe soportar un texto
+  configurable y versionado por el administrador; se registra qué versión
+  aceptó cada alumno y cuándo. El texto legal real lo redacta el equipo del
+  evento, fuera de este spec.
+- **2026-08-31 — RF-121: retención indefinida.** No hay eliminación ni
+  anonimización automática de datos personales tras el evento; no se
+  construye un job de purga.
 
 ## Alcance
 
@@ -175,8 +199,10 @@ este conserva su perfil, su puntaje y su capacidad de acumular puntos.
 - **Un miembro de staff se retira del equipo.** Se le retira el rol; las
   validaciones que hizo permanecen íntegras y siguen atribuidas a él.
 - **Corrección del correo de un alumno ya activo.** El correo es su
-  identificador de acceso; cambiarlo requiere reverificación.
-  `[NECESITA CLARIFICACIÓN: ¿puede el alumno cambiar su propio correo, o solo el administrador?]`
+  identificador de acceso; cambiarlo requiere reverificación. **Resuelto
+  2026-08-31: solo el administrador puede cambiarlo**, a solicitud del
+  alumno (RF-112a). El nuevo correo no toma efecto hasta que se verifica su
+  titularidad.
 - **Alumno que olvida su contraseña.** Recuperación por correo con enlace de un
   solo uso y vencimiento.
 - **Último administrador del sistema.** El sistema debe impedir que se
@@ -217,17 +243,22 @@ este conserva su perfil, su puntaje y su capacidad de acumular puntos.
 - **RF-104a:** El sistema DEBE permitir además el alta individual de usuarios por
   parte del administrador, obligatoria para el rol de staff. **El staff no se
   auto-registra:** es un rol de confianza que otorga puntos.
-- **RF-105:** El administrador DEBE poder importar un padrón institucional que
-  el sistema use como referencia de validación, procesando las filas válidas y
-  reportando las inválidas con su motivo, sin cancelar la operación.
+- ~~**RF-105:** El administrador DEBE poder importar un padrón institucional
+  que el sistema use como referencia de validación, procesando las filas
+  válidas y reportando las inválidas con su motivo, sin cancelar la
+  operación.~~ **Eliminado 2026-08-31 (ver ADR-007):** no existe un padrón
+  institucional exportable. La universidad no provee ese archivo para esta
+  edición del evento; construir la importación de un padrón que no existe es
+  future-proofing prohibido por el Artículo VII. Las barreras contra fraude
+  quedan repartidas entre RF-106, RF-123, RF-124 y RF-126.
 - **RF-106:** El sistema DEBE identificar unívocamente a cada alumno por su
   código de registro y por su correo, y rechazar duplicados de cualquiera de los
   dos sin revelar datos del titular existente.
 - **RF-107:** El sistema DEBE enviar una invitación al crear un usuario desde el
   panel de administración, con la que este define su contraseña.
 - **RF-108:** Las invitaciones, los enlaces de verificación y los de recuperación
-  DEBEN ser de un solo uso y tener vencimiento.
-  `[NECESITA CLARIFICACIÓN: ¿cuántos días de validez?]`
+  DEBEN ser de un solo uso y tener vencimiento. **Resuelto 2026-08-31: 7 días
+  de validez** desde su emisión, para los tres tipos por igual.
 - **RF-109:** El sistema DEBE autenticar a los usuarios con correo y contraseña
   propios del sistema y mantener sesiones revocables. (Decisión tomada el
   2026-08-30: registro autogestionado, no autenticación federada con la cuenta
@@ -238,14 +269,19 @@ este conserva su perfil, su puntaje y su capacidad de acumular puntos.
 - **RF-122:** Una cuenta creada por auto-registro DEBE quedar en estado
   pendiente y NO DEBE poder acumular puntos hasta ser verificada.
 - **RF-123:** El sistema DEBE restringir el registro a correos del dominio
-  institucional de la UCB.
-  `[NECESITA CLARIFICACIÓN: ¿cuál es el dominio exacto de los correos de alumnos? ¿Todos los alumnos habilitados tienen uno activo, o hay quienes usan correo personal?]`
+  institucional de la UCB. **Resuelto 2026-08-31: dominio `@ucb.edu.bo`.**
+  Todos los alumnos activos de la UCB tienen correo activo de ese dominio.
 - **RF-124:** El sistema DEBE verificar la titularidad del correo mediante un
   enlace de un solo uso antes de activar la cuenta.
-- **RF-125:** El sistema DEBE validar el código de registro declarado contra el
-  padrón institucional cuando este haya sido cargado, y rechazar los que no
-  figuren en él.
-  `[NECESITA CLARIFICACIÓN: ¿existe un padrón exportable de alumnos habilitados? Si no lo hay, la única barrera real contra cuentas falsas es el dominio del correo, y conviene decidir si el administrador revisará los registros manualmente.]`
+- **RF-125:** *(Redactado de nuevo 2026-08-31, ver ADR-007 — ya no depende de
+  un padrón que no existe.)* El sistema NO DEBE tener una validación
+  automática contra un padrón institucional externo. Las barreras contra
+  fraude y cuentas duplicadas son, en conjunto: el dominio de correo
+  institucional (RF-123), la verificación de titularidad del correo
+  (RF-124), la unicidad permanente de código de registro y correo —que no se
+  libera aunque una cuenta se rechace o deshabilite— (RF-106), y la revisión
+  manual del administrador sobre registros sospechosos (RF-126). Ninguna
+  basta por sí sola.
 - **RF-126:** El administrador DEBE poder revisar, aprobar, rechazar y
   deshabilitar registros de alumnos, y ver los pendientes de verificación.
 - **RF-127:** El formulario de registro DEBE estar protegido contra altas
@@ -276,10 +312,11 @@ este conserva su perfil, su puntaje y su capacidad de acumular puntos.
   | Biografía breve | Perfil de la comunidad |
   | Áreas de interés temático | Medir la diversidad disciplinar de los asistentes |
   | Requerimientos de accesibilidad | Preparar la sede con antelación |
-  | Restricciones alimentarias | Solo si habrá servicio de alimentos |
   | Enlace a red profesional | Vinculación posterior al evento |
 
-  `[NECESITA CLARIFICACIÓN: ¿habrá servicio de alimentos en el evento? Si no, el campo de restricciones alimentarias sobra y conviene quitarlo: cada campo extra baja la tasa de registros completados.]`
+  **Resuelto 2026-08-31: no habrá servicio de alimentos en el evento.** Se
+  elimina el campo "restricciones alimentarias" — cada campo extra baja la
+  tasa de registros completados (RF-110a).
 
 - **RF-110a:** El formulario de registro NO DEBE pedir campos opcionales. Se
   solicitan después, desde el perfil ya creado. Un formulario largo es la causa
@@ -294,8 +331,12 @@ este conserva su perfil, su puntaje y su capacidad de acumular puntos.
   un campo bloqueado.
 - **RF-128:** El sistema DEBE recabar el consentimiento explícito del alumno para
   el tratamiento de sus datos personales y para el uso de su imagen en el
-  registro fotográfico del evento.
-  `[NECESITA CLARIFICACIÓN: ¿la universidad tiene un texto de consentimiento aprobado que debamos usar? Es un requisito legal, no una casilla decorativa.]`
+  registro fotográfico del evento. **Resuelto 2026-08-31: no existe todavía
+  un texto legal aprobado por la universidad.** El sistema DEBE soportar un
+  texto de consentimiento configurable y versionado por el administrador (no
+  fijo en el código), y registrar qué versión aceptó cada alumno y en qué
+  momento. El texto legal real lo redacta el equipo del evento, fuera de
+  este spec.
 - **RF-113:** El administrador DEBE poder listar a todos los alumnos con su
   estado y puntaje, filtrando por carrera, facultad, estado y texto libre.
 - **RF-114:** El administrador DEBE poder abrir el detalle de progreso
@@ -309,11 +350,18 @@ este conserva su perfil, su puntaje y su capacidad de acumular puntos.
 - **RF-118:** Deshabilitar un usuario DEBE preservar íntegro su historial y sus
   registros asociados.
 - **RF-119:** El sistema DEBE impedir que quede sin ningún administrador activo.
-- **RF-120:** El sistema DEBE permitir exportar el padrón de alumnos y su estado
-  en un formato tabular abierto.
+- **RF-120:** El sistema DEBE permitir exportar el registro propio de alumnos y
+  su estado en un formato tabular abierto. (Este "padrón" es la salida que el
+  propio sistema construye con sus registros — no debe confundirse con el
+  padrón institucional externo que RF-105 proponía importar y que se
+  eliminó, ver ADR-007.)
 - **RF-121:** El sistema DEBE contemplar la eliminación o anonimización de los
-  datos personales de los alumnos una vez concluido el evento.
-  `[NECESITA CLARIFICACIÓN: ¿qué plazo de retención define la universidad tras el 9 de noviembre? ¿Los puntos se conservan para futuras ediciones o el sistema se archiva?]`
+  datos personales de los alumnos una vez concluido el evento. **Resuelto
+  2026-08-31: retención indefinida.** La universidad no ha definido (ni
+  necesita para este lanzamiento) un plazo de purga; los datos y los puntos
+  se conservan para posibles ediciones futuras. No se construye un job de
+  eliminación/anonimización automática. Si en el futuro la universidad
+  define una política de retención, este requisito se enmienda entonces.
 
 ## Entidades clave
 
@@ -347,7 +395,9 @@ este conserva su perfil, su puntaje y su capacidad de acumular puntos.
 
 ## Checklist de completitud
 
-- [ ] No quedan marcadores `[NECESITA CLARIFICACIÓN]` — **8 abiertos** (3 resueltos, 6 nuevos derivados del auto-registro)
+- [x] No quedan marcadores `[NECESITA CLARIFICACIÓN]` — **0 abiertos**
+  (resueltos 2026-08-31; ver ADR-007 para la decisión derivada sobre el
+  padrón institucional)
 - [x] Los requisitos son verificables y sin ambigüedad
 - [x] Los criterios de éxito son medibles
 - [x] No hay detalles de implementación
