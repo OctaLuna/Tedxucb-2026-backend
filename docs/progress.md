@@ -27,7 +27,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 00 | `00-bootstrap-infraestructura.md` | Infraestructura base (NestJS, Prisma, Docker) | ✅ hecho | `45323e8` | Jest: 3/3 · Playwright: 1/1 |
 | 001-a | `001-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Identidad | ✅ hecho | `75697a6` | — (documental) |
 | 001-b | `001-b-implementacion-identidad.md` | Implementación — módulo `auth` | ✅ hecho | `6859adc`, `08cbd03` | Jest: 51/51 · Playwright: 2/2 |
-| 001-c | `001-c-implementacion-users.md` | Implementación — módulo `users` | ⏳ pendiente | — | — |
+| 001-c | `001-c-implementacion-users.md` | Implementación — módulo `users` | ✅ hecho | `81372c7`, `a9f76c8` | Jest: 88/88 · Playwright: 4/4 |
 | 001-d | `001-d-implementacion-profiles.md` | Implementación — módulo `profiles` | ⏳ pendiente | — | — |
 | 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ⏳ pendiente | — | — |
 | 002-b | `002-b-implementacion-sitio-publico.md` | Implementación — Sitio público | ⏳ pendiente | — | — |
@@ -43,6 +43,57 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-01 — `001-c-implementacion-users` (módulo `users`)
+
+Segundo de los 3 módulos de `001`. Consume `OneTimeTokenService`/
+`PasswordHashingService`/guards de `auth` directo por import — no
+reimplementa nada de ese módulo.
+
+Migración nueva: `faculties`, `careers`, `student_profiles`,
+`consent_versions` (índice único parcial `one_active_consent_version`),
+`consent_acceptances`, `correction_requests`. Registro (Historia 1): crea
+`users` + `student_profiles` + `consent_acceptances` + el `auth_tokens` de
+verificación, todos en una sola transacción (invariante del contrato).
+Revisión manual de pendientes (ADR-007, RF-126). Correcciones de campo
+bloqueado (RF-112a): `studentCode`/`careerId` se aplican de inmediato,
+`email` nunca se sobrescribe directo — crea un `auth_tokens` con
+`new_email`, el cambio real ocurre al verificar.
+
+**Desvío respecto a `data-model.md`:** `correction_requests` no estaba
+diseñada ahí (quedó vacío en `001-a`) pero el contrato
+`usuarios-y-roles.md` la exige. Diseñada ahora: `CHECK` de campo/estado,
+índice único parcial `one_pending_correction_per_student_field` (mismo
+patrón que `one_open_claim_per_activity` de `003`).
+
+**Decisión de diseño explícita, no forzada por la spec:** aprobar un
+registro pendiente (`POST /students/:id/approve`) activa la cuenta
+directamente, igual que verificar el correo — se trata como una barrera
+equivalente, no como un paso adicional obligatorio antes de la
+verificación. Coherente con ADR-007 (ninguna de las barreras basta sola;
+el criterio humano del admin es tan válido como el enlace de correo).
+
+**Bugs reales encontrados y corregidos vía pruebas:**
+- **`RolesGuard` ignoraba `@Roles()` puesto a nivel de clase** (solo leía
+  metadata de método) — dejaba pasar a cualquier autenticado sin importar
+  su rol en cualquier controlador con `@Roles()` en la clase, como
+  `UsersController`. Corregido con `getAllAndOverride()`.
+- `OneTimeTokenService.issue()` no podía participar en una transacción ya
+  abierta por el llamador — necesario para la atomicidad del registro.
+- Redis acumula estado real entre corridas repetidas de la suite E2E
+  durante depuración (los límites de frecuencia son de verdad: 10 login/
+  60s, 5 registros/hora) — hubo que vaciar `rate-limit:*` a mano una vez.
+- Playwright corriendo varios archivos E2E en paralelo contra el mismo
+  servidor y la misma base real se pisaban entre sí (mismo síntoma que ya
+  forzó `maxWorkers` en Jest) — se fija `workers: 1` en
+  `playwright.config.ts`.
+
+- Jest: 88/88 (contrato, integración, unitarias — acumulado con `auth`).
+- Playwright: 4/4 (`health`, `auth`, `users` ×2).
+- `docker compose ps`: `postgres`/`redis` `healthy` (Docker Desktop se
+  había cerrado entre sesiones; se reinició al arrancar esta).
+- Commits: `4802a4f` (fix de `auth`), `81372c7` (módulo `users`),
+  `a9f76c8` (pruebas).
 
 ### 2026-09-01 — `001-b-implementacion-identidad` (módulo `auth`)
 
