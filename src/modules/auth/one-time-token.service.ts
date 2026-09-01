@@ -27,18 +27,27 @@ export class OneTimeTokenService {
    * Invalida cualquier token pendiente del mismo (userId, type) —lo exige
    * el índice único parcial `one_pending_token_per_user_type`— y emite uno
    * nuevo.
+   *
+   * `externalTx` permite participar en una transacción ya abierta por el
+   * llamador (p. ej. el registro de `users`, que crea `users` +
+   * `student_profiles` + `consent_acceptances` + este token, todos juntos o
+   * ninguno). Sin `externalTx`, abre su propia transacción — sigue siendo
+   * atómico en ambos casos.
    */
-  async issue(params: IssueOneTimeTokenParams): Promise<{ token: string }> {
+  async issue(
+    params: IssueOneTimeTokenParams,
+    externalTx?: Prisma.TransactionClient,
+  ): Promise<{ token: string }> {
     const token = generateOpaqueToken();
     const tokenHash = hashToken(token);
     const expiresAt = new Date(Date.now() + ONE_TIME_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
 
-    await this.prisma.$transaction([
-      this.prisma.authToken.updateMany({
+    const run = async (tx: Prisma.TransactionClient | PrismaService) => {
+      await tx.authToken.updateMany({
         where: { userId: params.userId, type: params.type, consumedAt: null },
         data: { consumedAt: new Date() },
-      }),
-      this.prisma.authToken.create({
+      });
+      await tx.authToken.create({
         data: {
           userId: params.userId,
           type: params.type,
@@ -47,8 +56,14 @@ export class OneTimeTokenService {
           createdById: params.createdById,
           newEmail: params.newEmail ? normalizeEmail(params.newEmail) : undefined,
         },
-      }),
-    ]);
+      });
+    };
+
+    if (externalTx) {
+      await run(externalTx);
+    } else {
+      await this.prisma.$transaction((tx) => run(tx));
+    }
 
     return { token };
   }

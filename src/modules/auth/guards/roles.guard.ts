@@ -15,7 +15,16 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.get<Role[] | undefined>(ROLES_KEY, context.getHandler());
+    // @Roles() se aplica a veces sobre el método, a veces sobre toda la
+    // clase (p. ej. UsersController). reflector.get() con context.getHandler()
+    // SOLO lee metadata de método y devuelve undefined en silencio para un
+    // @Roles() de clase, dejando pasar a cualquier autenticado -- bug real
+    // encontrado por las pruebas de contrato. getAllAndOverride() revisa
+    // método y clase, en ese orden.
+    const requiredRoles = this.reflector.getAllAndOverride<Role[] | undefined>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
     if (!requiredRoles || requiredRoles.length === 0) {
       return true;
     }
