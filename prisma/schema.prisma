@@ -32,6 +32,8 @@ model User {
   createdTokens  AuthToken[]    @relation("AuthTokenCreatedBy")
   refreshTokens  RefreshToken[]
   auditLogs      AuditLog[]
+  studentProfile StudentProfile?
+  resolvedCorrectionRequests CorrectionRequest[] @relation("CorrectionRequestResolvedBy")
 
   @@map("users")
 }
@@ -95,4 +97,104 @@ model AuditLog {
   actor User? @relation(fields: [actorId], references: [id])
 
   @@map("audit_log")
+}
+
+model Faculty {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  careers Career[]
+
+  @@map("faculties")
+}
+
+model Career {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  facultyId String   @map("faculty_id") @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  faculty         Faculty          @relation(fields: [facultyId], references: [id])
+  studentProfiles StudentProfile[]
+
+  @@unique([facultyId, name])
+  @@map("careers")
+}
+
+// 1:1 real con User: la propia FK es la PK (mismo patrón que ya usa 003 al
+// referenciar student_profiles(user_id)). total_points NO se declara aquí:
+// lo agrega 003-motor-de-puntos por ALTER TABLE.
+model StudentProfile {
+  userId              String    @id @map("user_id") @db.Uuid
+  studentCode         String    @unique @map("student_code")
+  careerId            String    @map("career_id") @db.Uuid
+  academicPeriod      String    @map("academic_period")
+  phone               String
+  avatarUrl           String?   @map("avatar_url")
+  idDocumentUrl       String?   @map("id_document_url")
+  bio                 String?
+  interests           String[]
+  accessibilityNeeds  String?   @map("accessibility_needs")
+  professionalLink    String?   @map("professional_link")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  user                User                @relation(fields: [userId], references: [id])
+  career              Career              @relation(fields: [careerId], references: [id])
+  consentAcceptances  ConsentAcceptance[]
+  correctionRequests  CorrectionRequest[]
+
+  @@map("student_profiles")
+}
+
+// El texto es configurable por el admin (RF-128) -- todavía no existe un
+// texto legal aprobado por la universidad, así que no puede ser fijo en el
+// código. Solo una versión activa a la vez (índice único parcial en la
+// migración).
+model ConsentVersion {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  version   String   @unique
+  body      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdById String? @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  acceptances ConsentAcceptance[]
+
+  @@map("consent_versions")
+}
+
+model ConsentAcceptance {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId         String   @map("student_id") @db.Uuid
+  consentVersionId  String   @map("consent_version_id") @db.Uuid
+  acceptedAt        DateTime @default(now()) @map("accepted_at") @db.Timestamptz
+
+  student        StudentProfile @relation(fields: [studentId], references: [userId])
+  consentVersion ConsentVersion @relation(fields: [consentVersionId], references: [id])
+
+  @@unique([studentId, consentVersionId])
+  @@map("consent_acceptances")
+}
+
+// No estaba en data-model.md de 001-a (vacío ahí) -- lo exige el contrato
+// usuarios-y-roles.md (POST /me/correction-requests, GET/POST resolve).
+// Diseñado ahora, documentado como desvío en docs/progress.md.
+model CorrectionRequest {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId      String    @map("student_id") @db.Uuid
+  field          String
+  newValue       String    @map("new_value")
+  reason         String
+  status         String    @default("PENDING")
+  resolvedById   String?   @map("resolved_by") @db.Uuid
+  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz
+  resolutionNote String?   @map("resolution_note")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  student    StudentProfile @relation(fields: [studentId], references: [userId])
+  resolvedBy User?          @relation("CorrectionRequestResolvedBy", fields: [resolvedById], references: [id])
+
+  @@map("correction_requests")
 }
