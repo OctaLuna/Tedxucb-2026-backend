@@ -24,13 +24,17 @@ después tienen un prompt **`-b`** de implementación con tareas reales.
 00-bootstrap-infraestructura
         │
         ▼
-001-a-clarify-plan-tasks ──▶ 001-b-implementacion-identidad
+001-a-clarify-plan-tasks ──▶ 001-b-implementacion-identidad (módulo auth)
         │                              │
-        │            (001 es la base de todo lo demás)
+        │                              ▼
+        │                      001-c-implementacion-users (módulo users)
         │                              │
-        ├──────────────┬───────────────┴───────────────┐
-        ▼               ▼                               ▼
-002-a-clarify-plan-tasks   003-a-modulo-activities   (004 espera a 003)
+        │            (001 es la base de todo lo demás)     ▼
+        │                              │      001-d-implementacion-profiles (módulo profiles)
+        │                              │                    │
+        ├──────────────┬───────────────┴────────────────────┴──────┐
+        ▼               ▼                                          ▼
+002-a-clarify-plan-tasks   003-a-modulo-activities   (004 espera a 003, y a 001 completo)
         │                   ▼
         ▼               003-b-modulo-points
 002-b-implementacion-      ▼
@@ -43,13 +47,25 @@ sitio-publico           003-c-modulo-leaderboard
                         004-b-implementacion-seleccion-cupos
 ```
 
+`001` se dividió en 3 módulos al ejecutar `001-b` (su `plan.md` definió
+`auth` + `users` + `profiles`, más de uno — ver la propia instrucción de
+`001-b-implementacion-identidad.md`, "si el plan definió más de un módulo,
+divide este trabajo"), con el mismo criterio que ya usaba `003` para sus
+4 sub-prompts: un módulo, un cierre, un commit. Orden de dependencia interno
+de `001`: `auth` (sin dependencias) → `users` (usa `OneTimeTokenService` y
+los guards de `auth`) → `profiles` (depende de que exista un `Usuario` con
+rol `ALUMNO`, que crea `users`). Falta todavía `001-e-integracion-y-pulido`
+para los Grupos 7-9 de `tasks.md` (no asignados a ningún módulo) — se crea
+cuando se cierre `001-d`, siguiendo el patrón de `003-d`.
+
 `002` no depende del motor de puntos y puede ejecutarse en paralelo a `003`
 (coincide con la recomendación de `specs/README.md`); `004` sí depende de que
-`003` esté terminado. Dentro de `003`, el orden `activities → points →
-leaderboard → integración` no es arbitrario: `points` reutiliza el guard y
-las entidades de `activities`, `leaderboard` lee la caché de `points`, y la
-integración cruzada (concurrencia, idempotencia) necesita los tres módulos ya
-implementados.
+`003` esté terminado, y en la práctica también de que `001` esté completo
+(selección de cupos necesita perfiles de alumno y puntaje). Dentro de `003`,
+el orden `activities → points → leaderboard → integración` no es arbitrario:
+`points` reutiliza el guard y las entidades de `activities`, `leaderboard`
+lee la caché de `points`, y la integración cruzada (concurrencia,
+idempotencia) necesita los tres módulos ya implementados.
 
 ## Qué skill cargar
 
@@ -57,7 +73,7 @@ implementados.
 |---|---|
 | `00-bootstrap-infraestructura` | `modulo-backend` |
 | `*-a-clarify-plan-tasks` | `spec-workflow` |
-| `*-b-implementacion-*`, `003-a/b/c` | `modulo-backend` + `contratos-api` + `pruebas`, y `motor-de-puntos` si toca puntos/check-in, y `seguridad-y-roles` si toca auth/permisos/datos personales |
+| `*-b-implementacion-*`, `001-b/c/d`, `003-a/b/c` | `modulo-backend` + `contratos-api` + `pruebas`, y `motor-de-puntos` si toca puntos/check-in, y `seguridad-y-roles` si toca auth/permisos/datos personales |
 | `003-d-integracion-y-pulido` | `pruebas` + `motor-de-puntos` |
 
 Todas las skills están en `.claude/skills/`. Ante la duda de si aplica
