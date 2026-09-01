@@ -6,6 +6,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url({ message: 'debe ser una URL de PostgreSQL válida' }),
   REDIS_URL: z.string().url({ message: 'debe ser una URL de Redis válida' }),
   JWT_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres'),
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  CORS_ORIGIN: z.string().default('http://localhost:5173'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

@@ -5,3 +5,94 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// Nota de diseño: se intentó citext (Unsupported("citext")) para email
+// insensible a mayúsculas, pero Prisma EXCLUYE por completo los campos
+// Unsupported de su API tipada (create/findUnique/where no pueden tocarlos
+// -- confirmado inspeccionando el cliente generado, no solo @unique falla).
+// Se usa TEXT normal + CHECK (email = lower(email)) + UNIQUE: el motor
+// rechaza cualquier fila que no llegue ya en minúsculas, y la app normaliza
+// siempre antes de escribir/consultar (src/common/utils/normalize-email.util.ts).
+model User {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email              String   @unique
+  passwordHash       String?  @map("password_hash")
+  fullName           String   @map("full_name")
+  status             String   @default("PENDING")
+  registrationSource String   @map("registration_source")
+  createdById        String?  @map("created_by") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  createdBy      User?          @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers   User[]         @relation("UserCreatedBy")
+  roles          UserRole[]     @relation("UserRoles")
+  grantedRoles   UserRole[]     @relation("RoleGrantedBy")
+  authTokens     AuthToken[]    @relation("AuthTokenUser")
+  createdTokens  AuthToken[]    @relation("AuthTokenCreatedBy")
+  refreshTokens  RefreshToken[]
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+model UserRole {
+  userId     String   @map("user_id") @db.Uuid
+  role       String
+  grantedById String? @map("granted_by") @db.Uuid
+  grantedAt  DateTime @default(now()) @map("granted_at") @db.Timestamptz
+
+  user      User  @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("RoleGrantedBy", fields: [grantedById], references: [id])
+
+  @@id([userId, role])
+  @@map("user_roles")
+}
+
+model AuthToken {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  type        String
+  tokenHash   String    @unique @map("token_hash")
+  newEmail    String?   @map("new_email")
+  createdById String?   @map("created_by") @db.Uuid
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
+  consumedAt  DateTime? @map("consumed_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user      User  @relation("AuthTokenUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("AuthTokenCreatedBy", fields: [createdById], references: [id])
+
+  @@map("auth_tokens")
+}
+
+model RefreshToken {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  tokenHash   String    @unique @map("token_hash")
+  familyId    String    @map("family_id") @db.Uuid
+  replacedById String?  @unique @map("replaced_by") @db.Uuid
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy RefreshToken? @relation("RefreshTokenChain", fields: [replacedById], references: [id])
+  replaces   RefreshToken? @relation("RefreshTokenChain")
+
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id") @db.Uuid
+  detail     Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@map("audit_log")
+}
