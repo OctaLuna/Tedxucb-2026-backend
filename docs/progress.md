@@ -26,7 +26,9 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 |---|---|---|---|---|---|
 | 00 | `00-bootstrap-infraestructura.md` | Infraestructura base (NestJS, Prisma, Docker) | ✅ hecho | `45323e8` | Jest: 3/3 · Playwright: 1/1 |
 | 001-a | `001-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Identidad | ✅ hecho | `75697a6` | — (documental) |
-| 001-b | `001-b-implementacion-identidad.md` | Implementación — Identidad | ⏳ pendiente | — | — |
+| 001-b | `001-b-implementacion-identidad.md` | Implementación — módulo `auth` | ✅ hecho | `6859adc`, `08cbd03` | Jest: 51/51 · Playwright: 2/2 |
+| 001-c | `001-c-implementacion-users.md` | Implementación — módulo `users` | ⏳ pendiente | — | — |
+| 001-d | `001-d-implementacion-profiles.md` | Implementación — módulo `profiles` | ⏳ pendiente | — | — |
 | 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ⏳ pendiente | — | — |
 | 002-b | `002-b-implementacion-sitio-publico.md` | Implementación — Sitio público | ⏳ pendiente | — | — |
 | 003-a | `003-a-modulo-activities.md` | Módulo `activities` (actividades, staff, check-in, QR) | ⏳ pendiente | — | — |
@@ -41,6 +43,60 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-01 — `001-b-implementacion-identidad` (módulo `auth`)
+
+`plan.md` de `001` definió 3 módulos, no 2 — siguiendo la instrucción del
+propio prompt ("si el plan definió más de un módulo, divide este trabajo"),
+esta sesión implementó **solo `auth`** y creó `001-c`/`001-d` para `users`/
+`profiles` (sin ejecutarlos).
+
+Migración de 5 tablas (`users`, `user_roles`, `auth_tokens`,
+`refresh_tokens`, `audit_log`) con los triggers de RF-119 (nunca sin
+administrador activo) y el de no-reconsumo de `auth_tokens`. Servicios
+`PasswordHashingService` (Argon2id), `TokenPairService` (JWT de acceso 15
+min + refresh rotativo — reusar uno ya rotado revoca toda la familia y lo
+audita) y `OneTimeTokenService` (genérico, listo para que `users` lo
+reutilice). `JwtAuthGuard`/`RolesGuard` manuales, sin Passport. Endpoints:
+`login`, `refresh`, `logout`, `logout-all`, `accept-invitation`,
+`password-reset/request` + `/confirm`, `GET /me`.
+
+**Desvíos respecto al diseño de `001-a`, documentados:**
+- **`refresh_tokens` es una tabla nueva**, no prevista en `data-model.md`:
+  `auth_tokens` estaba diseñada para un único token pendiente por
+  `(usuario, tipo)` — lo opuesto de una sesión multi-dispositivo.
+- **`email` es `TEXT` + `CHECK (email = lower(email))` + `UNIQUE`, no
+  `citext`**: Prisma excluye por completo los campos `Unsupported` de su
+  API tipada (`create`/`findUnique` no pueden tocarlos) — confirmado
+  inspeccionando el cliente generado, no solo la limitación de `@unique`
+  que se había anticipado.
+- **`@nestjs/throttler` no se instaló**: su última versión no declara
+  soporte para `@nestjs/common@^12` (verificado contra el registro de
+  npm). Se construyó un `RateLimitGuard` propio respaldado por Redis
+  (`INCR`+`EXPIRE`, ~40 líneas).
+- **`prisma migrate reset` pidió consentimiento explícito** (Prisma
+  detecta que lo invoca un agente de IA y bloquea la acción sin
+  confirmación humana) — se pidió y se obtuvo antes de ejecutar, sobre la
+  base de desarrollo local, sin datos que perder.
+
+**Bugs reales encontrados y corregidos vía pruebas** (no hipotéticos):
+`login` sin `@HttpCode(200)`; `AllExceptionsFilter` reenviaba sin
+reformatear el 400 por defecto de `ValidationPipe` porque coincidía por
+casualidad con la forma de una respuesta uniforme; conexiones de Redis/
+Prisma de las pruebas sin cerrar (proceso de Jest colgado indefinidamente);
+Redis es un recurso real compartido entre archivos de prueba y necesita su
+propia limpieza entre pruebas, a diferencia de Postgres. También: Node 24 +
+Jest 30 necesitan `NODE_OPTIONS=--experimental-vm-modules` para poder
+`require()` los paquetes ESM-only de Nest 12 desde pruebas en CommonJS
+(agregado al script `test` vía `cross-env`); Jest corriendo en paralelo
+contra la misma base compartida producía deadlocks entre archivos (`
+maxWorkers: 1`).
+
+- Jest: 51/51 (contrato, integración, unitarias).
+- Playwright: 2/2 (`health.e2e.spec.ts` + `auth.e2e.spec.ts`).
+- `docker compose ps`: `postgres`/`redis` `healthy`.
+- Commits: `6859adc` (módulo auth), `08cbd03` (pruebas), `ccdfc6d`
+  (prompts `001-c`/`001-d` y actualización de `prompts/README.md`).
 
 ### 2026-08-31 — `001-a-clarify-plan-tasks`
 
