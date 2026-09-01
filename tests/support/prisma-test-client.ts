@@ -18,6 +18,20 @@ export async function cleanAuthTables(): Promise<void> {
 }
 
 /**
+ * `users` (módulo `users`, 001-c en adelante): trunca también el catálogo y
+ * los datos de alumno. CASCADE se encarga del orden de dependencia real
+ * (student_profiles/consent_acceptances/correction_requests referencian
+ * users; careers referencia faculties) — no hace falta listarlas dos veces.
+ */
+export async function cleanAllTables(): Promise<void> {
+  await prismaTestClient.$executeRawUnsafe(
+    'TRUNCATE TABLE audit_log, refresh_tokens, auth_tokens, correction_requests, ' +
+      'consent_acceptances, consent_versions, student_profiles, careers, faculties, ' +
+      'user_roles, users RESTART IDENTITY CASCADE',
+  );
+}
+
+/**
  * Cada archivo de prueba de Jest tiene su propio registro de módulos, así
  * que `prismaTestClient` es una instancia nueva (con su propio pool de
  * conexión) por archivo, aunque solo se importe indirectamente vía
