@@ -84,6 +84,7 @@ tres casos (RF-330).
 | `400` | `REASON_REQUIRED` | Motivo ausente o vacío. |
 | `400` | `ZERO_POINTS` | `points` igual a cero. |
 | `403` | `FORBIDDEN` | El solicitante no es administrador. |
+| `404` | `NOT_FOUND` | `studentId` no corresponde a ningún alumno. (añadido 2026-09-02) |
 
 Una penalización mayor que el puntaje actual **no** falla: el puntaje queda en
 cero y la respuesta lo indica (RF-328).
@@ -101,8 +102,16 @@ cero y la respuesta lo indica (RF-328).
 Crea un movimiento nuevo de signo contrario que apunta al original. **No
 modifica ni elimina nada** (RF-325, RF-326).
 
+Respuesta exitosa:
+
+```json
+{ "transactionId": "a1f0...", "reversesId": "9c1f...", "newTotal": 35 }
+```
+
 | Código | `error` | Cuándo |
 |---|---|---|
+| `400` | `REASON_REQUIRED` | Motivo ausente o vacío. Toda reversión lleva motivo (RF-330); el `CHECK manual_types_need_reason` incluye `REVERSAL`. (añadido 2026-09-02) |
+| `404` | `NOT_FOUND` | `transactionId` no existe. (añadido 2026-09-02) |
 | `409` | `ALREADY_REVERSED` | Ese movimiento ya fue revertido. Incluye el id de la reversión existente. |
 | `422` | `CANNOT_REVERSE_REVERSAL` | No se revierte una reversión; para eso se emite un ajuste. |
 
