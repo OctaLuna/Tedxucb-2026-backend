@@ -6,6 +6,7 @@ import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
+import { ContentModule } from './modules/content/content.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -26,6 +27,9 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
     // Nest/Express matchean por orden de registro. Ver la nota en
     // students.controller.ts (profiles) y students-review.controller.ts (users).
     ProfilesModule,
+    // ContentModule: rutas nuevas ('public/event', 'events', 'content-blocks'),
+    // sin colisión con nada existente -- el orden no importa acá.
+    ContentModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

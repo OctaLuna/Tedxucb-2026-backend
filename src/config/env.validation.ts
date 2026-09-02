@@ -9,6 +9,7 @@ const envSchema = z.object({
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   AVATAR_UPLOAD_DIR: z.string().default('./uploads/avatars'),
+  EVENT_IMAGE_UPLOAD_DIR: z.string().default('./uploads/events'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

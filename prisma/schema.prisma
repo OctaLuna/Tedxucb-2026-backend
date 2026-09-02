@@ -34,6 +34,8 @@ model User {
   auditLogs      AuditLog[]
   studentProfile StudentProfile?
   resolvedCorrectionRequests CorrectionRequest[] @relation("CorrectionRequestResolvedBy")
+  updatedEvents              Event[]
+  updatedContentBlocks       ContentBlock[]
 
   @@map("users")
 }
@@ -197,4 +199,43 @@ model CorrectionRequest {
   resolvedBy User?          @relation("CorrectionRequestResolvedBy", fields: [resolvedById], references: [id])
 
   @@map("correction_requests")
+}
+
+// Singleton operativo: solo una fila PUBLISHED a la vez (índice único
+// parcial en la migración, one_published_event). Sin historial de
+// ediciones a propósito -- el spec solo pide editar el evento actual, no
+// gestionar varias ediciones (Artículo VII, ver plan.md de 002).
+model Event {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  tagline     String?
+  startsAt    DateTime @map("starts_at") @db.Timestamptz
+  venue       String?
+  capacity    Int?
+  imageUrl    String?  @map("image_url")
+  status      String   @default("DRAFT")
+  updatedById String?  @map("updated_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  updatedBy User? @relation(fields: [updatedById], references: [id])
+
+  @@map("events")
+}
+
+// Clave -> texto editable por el admin sin desplegar código (RF-203). Sin
+// versionado ni estado de publicación -- no hay aquí el requisito legal que
+// justifica el versionado de ConsentVersion (ver plan.md de 002).
+model ContentBlock {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  title       String?
+  body        String
+  updatedById String?  @map("updated_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  updatedBy User? @relation(fields: [updatedById], references: [id])
+
+  @@map("content_blocks")
 }

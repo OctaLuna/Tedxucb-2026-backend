@@ -19,6 +19,12 @@ async function bootstrap() {
   mkdirSync(uploadDir, { recursive: true });
   app.useStaticAssets(uploadDir, { prefix: '/uploads/avatars' });
 
+  // Imágenes de evento: mismo patrón que avatares, directorio y prefijo
+  // propios (RF-218, contracts/evento-y-cuenta-regresiva.md).
+  const eventImageUploadDir = path.resolve(process.env.EVENT_IMAGE_UPLOAD_DIR ?? './uploads/events');
+  mkdirSync(eventImageUploadDir, { recursive: true });
+  app.useStaticAssets(eventImageUploadDir, { prefix: '/uploads/events' });
+
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
 }
