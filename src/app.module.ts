@@ -8,6 +8,7 @@ import { UsersModule } from './modules/users/users.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { ContentModule } from './modules/content/content.module';
 import { SpeakersModule } from './modules/speakers/speakers.module';
+import { ActivitiesModule } from './modules/activities/activities.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -36,6 +37,10 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
     // MailModule (BullMQ) al árbol de módulos, así que createTestApp()
     // también levanta su Worker de verdad en las pruebas.
     SpeakersModule,
+    // ActivitiesModule: rutas nuevas ('activities', 'activity-categories'),
+    // más 'me/qr' (MeQrController) -- sin colisión con 'me/profile'/'me/avatar'
+    // de ProfilesModule, son segmentos literales distintos.
+    ActivitiesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
