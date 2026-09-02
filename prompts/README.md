@@ -38,11 +38,11 @@ después tienen un prompt **`-b`** de implementación con tareas reales.
         │                   ▼
         ▼               003-b-modulo-points
 002-b-implementacion-      ▼
-sitio-publico           003-c-modulo-leaderboard
-                            ▼
-                        003-d-integracion-y-pulido
-                            ▼
-                        004-a-clarify-plan-tasks
+sitio-publico (content) 003-c-modulo-leaderboard
+        │                   ▼
+        ▼               003-d-integracion-y-pulido
+002-c-implementacion-      ▼
+speakers                004-a-clarify-plan-tasks
                             ▼
                         004-b-implementacion-seleccion-cupos
 ```
@@ -57,6 +57,13 @@ los guards de `auth`) → `profiles` (depende de que exista un `Usuario` con
 rol `ALUMNO`, que crea `users`). Falta todavía `001-e-integracion-y-pulido`
 para los Grupos 7-9 de `tasks.md` (no asignados a ningún módulo) — se crea
 cuando se cierre `001-d`, siguiendo el patrón de `003-d`.
+
+`002` se dividió en 2 módulos al ejecutar `002-b` (su `plan.md` definió
+`content` + `speakers`, más de uno — mismo criterio que `001-b`): `content`
+(Evento + bloques de contenido, sin dependencias) primero, `speakers`
+(fichas + postulaciones) después en `002-c` — aunque `plan.md` aclara que
+ninguno depende del otro dentro de la feature, así que `002-c` podría
+ejecutarse antes si hiciera falta.
 
 `002` no depende del motor de puntos y puede ejecutarse en paralelo a `003`
 (coincide con la recomendación de `specs/README.md`); `004` sí depende de que
@@ -73,7 +80,7 @@ idempotencia) necesita los tres módulos ya implementados.
 |---|---|
 | `00-bootstrap-infraestructura` | `modulo-backend` |
 | `*-a-clarify-plan-tasks` | `spec-workflow` |
-| `*-b-implementacion-*`, `001-b/c/d`, `003-a/b/c` | `modulo-backend` + `contratos-api` + `pruebas`, y `motor-de-puntos` si toca puntos/check-in, y `seguridad-y-roles` si toca auth/permisos/datos personales |
+| `*-b-implementacion-*`, `001-b/c/d`, `002-c`, `003-a/b/c` | `modulo-backend` + `contratos-api` + `pruebas`, y `motor-de-puntos` si toca puntos/check-in, y `seguridad-y-roles` si toca auth/permisos/datos personales |
 | `003-d-integracion-y-pulido` | `pruebas` + `motor-de-puntos` |
 
 Todas las skills están en `.claude/skills/`. Ante la duda de si aplica

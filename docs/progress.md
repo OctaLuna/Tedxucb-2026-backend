@@ -30,7 +30,8 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 001-c | `001-c-implementacion-users.md` | Implementación — módulo `users` | ✅ hecho | `81372c7`, `a9f76c8` | Jest: 88/88 · Playwright: 4/4 |
 | 001-d | `001-d-implementacion-profiles.md` | Implementación — módulo `profiles` | ✅ hecho | `97643e8`, `3eeb7aa` | Jest: 115/115 · Playwright: 6/6 |
 | 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ✅ hecho | `8ddd311` | — (documental) |
-| 002-b | `002-b-implementacion-sitio-publico.md` | Implementación — Sitio público | ⏳ pendiente | — | — |
+| 002-b | `002-b-implementacion-sitio-publico.md` | Implementación — módulo `content` | ✅ hecho | `3ff6683`, `0d4365b`, `470a784` | Jest: 144/144 · Playwright: 9/9 |
+| 002-c | `002-c-implementacion-speakers.md` | Implementación — módulo `speakers` | ⏳ pendiente | — | — |
 | 003-a | `003-a-modulo-activities.md` | Módulo `activities` (actividades, staff, check-in, QR) | ⏳ pendiente | — | — |
 | 003-b | `003-b-modulo-points.md` | Módulo `points` (ledger, ajustes, reversiones, reclamos) | ⏳ pendiente | — | — |
 | 003-c | `003-c-modulo-leaderboard.md` | Módulo `leaderboard` (ranking, progreso, export) | ⏳ pendiente | — | — |
@@ -43,6 +44,63 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-02 — `002-b-implementacion-sitio-publico` (módulo `content`)
+
+Primero de los 2 módulos de `002` (su `plan.md` los definió: `content` +
+`speakers`). Diseñado con un agente Explore (snapshot exacto del código real
+de `001`) y un agente Plan, revisados contra el repo antes de escribir
+código — ningún hallazgo del diseño reabrió `plan.md`/`data-model.md`/
+`contracts/`.
+
+Migración nueva: `events` (`CHECK valid_status`, `CHECK capacity_positive`,
+índice único parcial `one_published_event` — mismo idioma que
+`one_active_consent_version` de `001`) y `content_blocks` (`CHECK
+key_format`, `CHECK body_not_blank`). Módulo `content` con 3 controladores
+(`PublicEventController` para `GET /public/event`, `EventsController` CRUD
+admin + subida de imagen, `ContentBlocksController` mixto público/admin) y 2
+servicios.
+
+**Hallazgos reales durante la migración, no anticipados por el diseño:**
+- **`prisma migrate dev --create-only` generó 9 `DROP INDEX`** de índices de
+  rendimiento que `001` había agregado a mano en migraciones anteriores
+  (`idx_users_status`, `idx_audit_actor`, etc.) sin declararlos como
+  `@@index` en `schema.prisma` — drift preexistente entre el schema y la
+  base real, no causado por este cambio. Se quitaron esos `DROP INDEX` de
+  la migración de `content` (no le corresponde tocar índices de `001`); el
+  drift en sí queda sin resolver (seguirá reapareciendo en la próxima
+  migración de cualquier módulo hasta que alguien agregue los `@@index`
+  faltantes al schema — no es parte de este prompt).
+- **`prisma.config.ts` no tenía el seed conectado.** Prisma 7 movió esa
+  configuración fuera de `package.json#prisma.seed` (que queda ignorado) —
+  `prisma db seed`/`migrate dev` no ejecutaban `prisma/seed.ts` para nadie,
+  ni siquiera para el seed de `001` (`seedTestCatalog`,
+  `seedPlaceholderConsentVersion`). Corregido agregando `migrations.seed` a
+  `prisma.config.ts`. Se agregaron `seedEvent()`/`seedContentBlocks()` al
+  mismo archivo (fecha real 9 de noviembre, hora/sede placeholder marcados
+  como tales).
+- **Ningún archivo E2E de Playwright llamaba `cleanRateLimits()`** (a
+  diferencia de todas las pruebas de contrato de Jest, que sí lo hacen) —
+  el límite de `login` (10/60s por IP) se agota acumulado entre archivos
+  porque Redis es un recurso compartido entre toda la corrida. Invisible
+  hasta ahora porque el total de logins de la suite se mantenía justo por
+  debajo del límite; las 2 pruebas E2E nuevas de `content` lo empujaron por
+  encima y `users.e2e.spec.ts` empezó a fallar de forma intermitente
+  (`POST /users` con `401` en vez de `201`, porque el login previo devolvía
+  `429` sin token). Corregido agregando `cleanRateLimits()` al `beforeEach`
+  de los 4 archivos E2E existentes, no solo el nuevo.
+
+- Jest: 144/144 (115 de `001` + 29 nuevas: `content-event` 13,
+  `content-blocks` 9, `content-constraints` 7).
+- Playwright: 9/9 (6 de `001` + 3 nuevas de `content`).
+- `docker compose ps`: `postgres`/`redis` `healthy`.
+- Creado `002-c-implementacion-speakers.md` para el segundo módulo (no
+  ejecutado); actualizado `prompts/README.md` (diagrama + párrafo de
+  división de `002`, mismo estilo que el de `001`).
+- `002` sigue con Implementación ⏳ pendiente en "Estado por feature" hasta
+  que `002-c` también cierre.
+- Commits: `3ff6683` (módulo `content`), `0d4365b` (pruebas), `470a784`
+  (fix de `cleanRateLimits` en E2E existentes).
 
 ### 2026-09-01 — `002-a-clarify-plan-tasks`
 
