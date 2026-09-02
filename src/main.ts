@@ -25,6 +25,11 @@ async function bootstrap() {
   mkdirSync(eventImageUploadDir, { recursive: true });
   app.useStaticAssets(eventImageUploadDir, { prefix: '/uploads/events' });
 
+  // Fotos de speaker: mismo patrón, directorio y prefijo propios.
+  const speakerPhotoUploadDir = path.resolve(process.env.SPEAKER_PHOTO_UPLOAD_DIR ?? './uploads/speakers');
+  mkdirSync(speakerPhotoUploadDir, { recursive: true });
+  app.useStaticAssets(speakerPhotoUploadDir, { prefix: '/uploads/speakers' });
+
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
 }

@@ -29,6 +29,18 @@ services:
       timeout: 5s
       retries: 10
 
+  # Captura correos salientes en desarrollo/pruebas (RF-213, módulo
+  # speakers) -- sin esto, MailService no tendría nada real contra qué
+  # probar y el proyecto tendría que mockear su primera pieza de
+  # infraestructura, algo que el Artículo IX prohíbe. Sin healthcheck: no
+  # bloquea el arranque de la app como sí lo hacen postgres/redis.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP, sin autenticación
+      - "8025:8025" # API REST + UI: GET /api/v1/messages
+
 volumes:
   ted_postgres_data:
   ted_redis_data:

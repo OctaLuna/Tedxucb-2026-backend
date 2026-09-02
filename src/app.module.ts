@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { ContentModule } from './modules/content/content.module';
+import { SpeakersModule } from './modules/speakers/speakers.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -30,6 +31,11 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
     // ContentModule: rutas nuevas ('public/event', 'events', 'content-blocks'),
     // sin colisión con nada existente -- el orden no importa acá.
     ContentModule,
+    // SpeakersModule: rutas nuevas ('public/speakers', 'public/applications',
+    // 'speakers', 'applications'), sin colisión con nada existente. Arrastra
+    // MailModule (BullMQ) al árbol de módulos, así que createTestApp()
+    // también levanta su Worker de verdad en las pruebas.
+    SpeakersModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

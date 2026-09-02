@@ -10,6 +10,15 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   AVATAR_UPLOAD_DIR: z.string().default('./uploads/avatars'),
   EVENT_IMAGE_UPLOAD_DIR: z.string().default('./uploads/events'),
+  SPEAKER_PHOTO_UPLOAD_DIR: z.string().default('./uploads/speakers'),
+  // Defaults apuntan a Mailpit local (docker-compose.yml) -- dev/tests
+  // funcionan sin tocar .env. En producción se sobreescriben con
+  // credenciales SMTP reales.
+  SMTP_HOST: z.string().default('localhost'),
+  SMTP_PORT: z.coerce.number().int().positive().default(1025),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  MAIL_FROM: z.string().default('TEDxUCB <no-reply@tedxucb.local>'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

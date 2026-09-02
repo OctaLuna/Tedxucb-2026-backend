@@ -36,6 +36,8 @@ model User {
   resolvedCorrectionRequests CorrectionRequest[] @relation("CorrectionRequestResolvedBy")
   updatedEvents              Event[]
   updatedContentBlocks       ContentBlock[]
+  createdSpeakers            Speaker[]
+  reviewedApplications       SpeakerApplication[]
 
   @@map("users")
 }
@@ -238,4 +240,53 @@ model ContentBlock {
   updatedBy User? @relation(fields: [updatedById], references: [id])
 
   @@map("content_blocks")
+}
+
+// Ficha pública del expositor (RF-206 a RF-209, RF-217). Sin DELETE -- se
+// despublica (status: DRAFT), nunca se borra (data-model.md §3 de 002).
+model Speaker {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName      String   @map("full_name")
+  headline      String?
+  bio           String?
+  talkTitle     String?  @map("talk_title")
+  photoUrl      String?  @map("photo_url")
+  photoAltText  String?  @map("photo_alt_text")
+  displayOrder  Int      @default(0) @map("display_order")
+  status        String   @default("DRAFT")
+  createdById   String?  @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  createdBy   User?               @relation(fields: [createdById], references: [id])
+  application SpeakerApplication?
+
+  @@map("speakers")
+}
+
+// Postulación pública (RF-210 a RF-215) -- máquina de estados propia, ver
+// applications.service.ts. Sin created_by: la envía el público, no un
+// usuario autenticado.
+model SpeakerApplication {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName           String    @map("full_name")
+  email              String
+  affiliation        String
+  expertiseArea      String    @map("expertise_area")
+  ideaTitle          String    @map("idea_title")
+  ideaSummary        String    @map("idea_summary")
+  evidenceBasis      String    @map("evidence_basis")
+  applicability      String
+  status             String    @default("PENDING")
+  internalNotes      String?   @map("internal_notes")
+  reviewedById       String?   @map("reviewed_by") @db.Uuid
+  reviewedAt         DateTime? @map("reviewed_at") @db.Timestamptz
+  convertedSpeakerId String?   @unique @map("converted_speaker_id") @db.Uuid
+  ipAddress          String?   @map("ip_address") @db.Inet
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  reviewedBy       User?    @relation(fields: [reviewedById], references: [id])
+  convertedSpeaker Speaker? @relation(fields: [convertedSpeakerId], references: [id])
+
+  @@map("speaker_applications")
 }
