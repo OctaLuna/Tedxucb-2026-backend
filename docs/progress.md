@@ -14,7 +14,7 @@ explícitas de qué fila y qué entrada de bitácora le corresponde (ver
 | Feature | Spec | Plan | Tasks | Implementación |
 |---|---|---|---|---|
 | `001` — Identidad y usuarios | ✅ | ✅ | ✅ | ✅ |
-| `002` — Sitio público | ✅ | ✅ | ✅ | ⏳ pendiente |
+| `002` — Sitio público | ✅ | ✅ | ✅ | ✅ |
 | `003` — Motor de puntos | ✅ | ✅ | ✅ | ⏳ pendiente |
 | `004` — Selección de cupos | ✅ | ⏳ pendiente | ⏳ pendiente | ⏳ pendiente |
 
@@ -31,7 +31,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 001-d | `001-d-implementacion-profiles.md` | Implementación — módulo `profiles` | ✅ hecho | `97643e8`, `3eeb7aa` | Jest: 115/115 · Playwright: 6/6 |
 | 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ✅ hecho | `8ddd311` | — (documental) |
 | 002-b | `002-b-implementacion-sitio-publico.md` | Implementación — módulo `content` | ✅ hecho | `3ff6683`, `0d4365b`, `470a784` | Jest: 144/144 · Playwright: 9/9 |
-| 002-c | `002-c-implementacion-speakers.md` | Implementación — módulo `speakers` | ⏳ pendiente | — | — |
+| 002-c | `002-c-implementacion-speakers.md` | Implementación — módulo `speakers` | ✅ hecho | `45cd9d7`, `fed2cc7` | Jest: 185/185 · Playwright: 11/11 |
 | 003-a | `003-a-modulo-activities.md` | Módulo `activities` (actividades, staff, check-in, QR) | ⏳ pendiente | — | — |
 | 003-b | `003-b-modulo-points.md` | Módulo `points` (ledger, ajustes, reversiones, reclamos) | ⏳ pendiente | — | — |
 | 003-c | `003-c-modulo-leaderboard.md` | Módulo `leaderboard` (ranking, progreso, export) | ⏳ pendiente | — | — |
@@ -44,6 +44,81 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-02 — `002-c-implementacion-speakers` (módulo `speakers`) — `002` completo
+
+Segundo y último módulo de `002` (`content` cerró en `002-b`). **Primera vez
+que la feature `002` queda con Implementación ✅ completa** — segunda
+feature completa del proyecto después de `001`.
+
+Terreno nuevo: BullMQ y `nodemailer` estaban en `package.json` pero sin una
+sola línea de código usándolos en todo el repo, y no había ningún servicio
+de captura de correo. Se agregó **Mailpit** (`docker-compose.yml`) para
+probar el envío de correo contra un servicio real — el Artículo IX prohíbe
+mocks, y hubiera sido el primer mock de infraestructura del proyecto.
+Verificado a mano con `curl`/SMTP crudo antes de escribir pruebas: la API
+de Mailpit devuelve `{messages:[{To:[{Address}], Subject, Snippet}]}` y
+`DELETE /api/v1/messages` limpia todo — confirmado el diseño antes de
+comprometerlo a código.
+
+Migración nueva: `speakers` (`CHECK published_speaker_is_complete`, mismo
+patrón que `003`) y `speaker_applications` (`CHECK converted_consistency`,
+`CHECK reviewed_needs_reviewer`, máquina de estados con 5 valores). Módulo
+`speakers` con 4 controladores (a diferencia de `content-blocks`, que
+fusiona público+admin, acá van físicamente separados por instrucción
+explícita de `plan.md` — mayor riesgo de fuga, datos personales reales) y
+2 servicios (`SpeakersService`, `ApplicationsService`, comparten
+`PrismaService` para la conversión sin cruzar módulos). `MailModule` nuevo
+en `src/common/mail/` (BullMQ + nodemailer), importado solo por
+`SpeakersModule` (no duplicado en `app.module.ts` — ya lo arrastra).
+
+**Bugs reales encontrados y corregidos, no anticipados por el diseño:**
+- **Import circular entre `mail.module.ts` y `mail.service.ts`/
+  `mail.processor.ts`**: ambos importaban la constante `MAIL_QUEUE` de
+  vuelta desde `mail.module.ts`, que a su vez los importa a ellos — dejaba
+  `MAIL_QUEUE` en `undefined` al momento de evaluar `@InjectQueue()`/
+  `@Processor()`, y BullMQ caía en silencio a la cola `"default"`. Detectado
+  al levantar la app manualmente (`UnknownDependenciesException:
+  BullQueue_default`), no por las pruebas. Corregido moviendo la constante a
+  `mail.constants.ts` propio.
+- **`prisma.config.ts` seguía sin el seed conectado** (ver `002-b`) y una
+  sesión de Postgres huérfana de esa corrida interrumpida seguía viva más
+  de una hora sosteniendo el advisory lock de `prisma migrate` — cada
+  migración nueva de este proyecto choca con el mismo lock hasta que se
+  identifica y termina la sesión colgada a mano
+  (`pg_terminate_backend`). Segunda vez que pasa (ya documentado en
+  `002-b`) — vale la pena investigar por qué `TaskStop` no cierra limpio la
+  conexión de Prisma antes de matar el proceso.
+- **`{...current, ...dto}` en `SpeakersService.update()` pisaba campos ya
+  guardados con `undefined`**: `class-transformer` materializa TODAS las
+  propiedades declaradas de un DTO como claves presentes (con valor
+  `undefined` si no vinieron en el JSON), y el spread de objetos copia esas
+  claves igual — un `PATCH {status:"PUBLISHED"}` sin ningún otro campo
+  volvía a marcar `headline`/`bio`/etc. como "faltantes" aunque ya
+  estuvieran guardados. Corregido filtrando las claves `undefined` del DTO
+  antes de fusionar con el estado actual.
+- **`UpdateSpeakerDto` no tenía forma de fijar `photoAltText`**: el texto
+  alternativo (RF-217) es un campo de texto que el admin escribe junto con
+  la foto, no parte del archivo — hacía falta en el mismo DTO que
+  `headline`/`bio`, no en el endpoint de subida de imagen. Sin él, ningún
+  speaker podía llegar nunca a `PUBLISHED` por la vía normal de la API.
+  Encontrado reproduciendo a mano con `curl` el flujo completo de Historia 3
+  antes de confiar en la prueba automatizada.
+
+Flujo de correo verificado de punta a punta a mano (`curl` SMTP crudo →
+Mailpit) antes de escribir ninguna prueba: postulación real → job de
+BullMQ → `nodemailer` → Mailpit recibe el correo con asunto y cuerpo
+correctos.
+
+- Jest: 185/185 (144 de `001`+`content` + 41 nuevas: `speakers` 15,
+  `applications` 14, restricciones 5, integración de historias/concurrencia/
+  duplicados 4, confirmación de correo contra Mailpit real 2).
+- Playwright: 11/11 (9 previos + 2 nuevas de `speakers`, una de ellas
+  verificando el correo real en Mailpit).
+- `docker compose ps`: `postgres`/`redis`/`mailpit` arriba.
+- `002` queda con Implementación ✅ en "Estado por feature" — feature
+  completa.
+- Commits: `45cd9d7` (módulo `speakers` + `MailModule`), `fed2cc7` (pruebas).
 
 ### 2026-09-02 — `002-b-implementacion-sitio-publico` (módulo `content`)
 
