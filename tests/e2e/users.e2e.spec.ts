@@ -1,11 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { cleanAllTables, prismaTestClient } from '../support/prisma-test-client';
+import { cleanRateLimits } from '../support/redis-test-client';
 import { seedCareer, seedConsentVersion } from '../support/seed-catalog';
 import { seedUser } from '../support/seed-user';
 
 test.describe('users: auto-registro, verificación, revisión y alta de staff', () => {
   test.beforeEach(async () => {
     await cleanAllTables();
+    await cleanRateLimits();
   });
 
   test('ciclo completo de auto-registro: registro -> verificación -> activa -> login', async ({ request }) => {

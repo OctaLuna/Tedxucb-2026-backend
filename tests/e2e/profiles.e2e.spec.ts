@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { cleanAllTables, prismaTestClient } from '../support/prisma-test-client';
+import { cleanRateLimits } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent, seedCareer } from '../support/seed-catalog';
 import { MINIMAL_VALID_PNG } from '../support/fixtures';
@@ -7,6 +8,7 @@ import { MINIMAL_VALID_PNG } from '../support/fixtures';
 test.describe('profiles: perfil propio, avatar, listado de monitoreo', () => {
   test.beforeEach(async () => {
     await cleanAllTables();
+    await cleanRateLimits();
   });
 
   test('perfil propio, avatar inválido sin alterar el existente (Historia 2, escenario 3)', async ({

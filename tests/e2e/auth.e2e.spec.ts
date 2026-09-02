@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { cleanAuthTables } from '../support/prisma-test-client';
+import { cleanRateLimits } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 
 /**
@@ -10,6 +11,7 @@ import { seedUser } from '../support/seed-user';
 test.describe('auth: login, /me, refresh y logout de punta a punta', () => {
   test.beforeEach(async () => {
     await cleanAuthTables();
+    await cleanRateLimits();
   });
 
   test('ciclo completo de sesión', async ({ request }) => {
