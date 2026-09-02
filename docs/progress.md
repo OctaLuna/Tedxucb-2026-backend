@@ -29,7 +29,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 001-b | `001-b-implementacion-identidad.md` | Implementación — módulo `auth` | ✅ hecho | `6859adc`, `08cbd03` | Jest: 51/51 · Playwright: 2/2 |
 | 001-c | `001-c-implementacion-users.md` | Implementación — módulo `users` | ✅ hecho | `81372c7`, `a9f76c8` | Jest: 88/88 · Playwright: 4/4 |
 | 001-d | `001-d-implementacion-profiles.md` | Implementación — módulo `profiles` | ✅ hecho | `97643e8`, `3eeb7aa` | Jest: 115/115 · Playwright: 6/6 |
-| 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ✅ hecho | — (pendiente commit) | — (documental) |
+| 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ✅ hecho | `8ddd311` | — (documental) |
 | 002-b | `002-b-implementacion-sitio-publico.md` | Implementación — Sitio público | ⏳ pendiente | — | — |
 | 003-a | `003-a-modulo-activities.md` | Módulo `activities` (actividades, staff, check-in, QR) | ⏳ pendiente | — | — |
 | 003-b | `003-b-modulo-points.md` | Módulo `points` (ledger, ajustes, reversiones, reclamos) | ⏳ pendiente | — | — |
@@ -84,9 +84,9 @@ pendiente de `001`.
 
 - Sin pruebas de módulo — prompt puramente documental (no hay código nuevo
   todavía).
-- Commit: pendiente (este cierre de `progress.md` va en el mismo commit que
-  `spec.md`/`plan.md`/`data-model.md`/`contracts/`/`tasks.md`/
-  `specs/README.md`).
+- Commit: `8ddd311` (spec resuelto + plan/data-model/contracts/tasks +
+  `specs/README.md`; este ajuste de hash en `progress.md` va en el commit
+  siguiente, mismo patrón que `001-a`).
 
 ### 2026-09-01 — `001-d-implementacion-profiles` (módulo `profiles`) — `001` completo
 
