@@ -21,9 +21,12 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: process.env.API_BASE_URL ?? 'http://localhost:3000',
-    extraHTTPHeaders: {
-      'Content-Type': 'application/json',
-    },
+    // Sin extraHTTPHeaders fijo de Content-Type: Playwright ya lo calcula
+    // solo por request según la opción usada (application/json para
+    // `data: {...}`, multipart/form-data con boundary para `multipart:
+    // {...}`). Fijarlo globalmente en application/json pisaba el boundary
+    // real en la subida de avatar de `profiles` (bug real: 400 en el
+    // E2E, 200 vía curl directo con el mismo servidor).
   },
   webServer: {
     command: 'npm run start',
