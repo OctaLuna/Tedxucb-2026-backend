@@ -33,7 +33,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 002-b | `002-b-implementacion-sitio-publico.md` | Implementación — módulo `content` | ✅ hecho | `3ff6683`, `0d4365b`, `470a784` | Jest: 144/144 · Playwright: 9/9 |
 | 002-c | `002-c-implementacion-speakers.md` | Implementación — módulo `speakers` | ✅ hecho | `45cd9d7`, `fed2cc7` | Jest: 185/185 · Playwright: 11/11 |
 | 003-a | `003-a-modulo-activities.md` | Módulo `activities` (actividades, staff, check-in, QR) | ✅ hecho | `bce9029`, `a81e9df`, `f73a48a`, `185aad2` | Jest: 234/234 · Playwright: 14/14 |
-| 003-b | `003-b-modulo-points.md` | Módulo `points` (ledger, ajustes, reversiones, reclamos) | ⏳ pendiente | — | — |
+| 003-b | `003-b-modulo-points.md` | Módulo `points` (ajustes, reversiones, reconciliación, `points-cli`) | ✅ hecho | `7122cf8`, `db162be`, `65b9794`, `4840a80`, `2f0c202` | Jest: 262/262 · Playwright: 15/15 |
 | 003-c | `003-c-modulo-leaderboard.md` | Módulo `leaderboard` (ranking, progreso, export) | ⏳ pendiente | — | — |
 | 003-d | `003-d-integracion-y-pulido.md` | Integración cruzada y pulido — Motor de puntos | ⏳ pendiente | — | — |
 | 004-a | `004-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Selección de cupos | ⏳ pendiente | — | — |
@@ -44,6 +44,89 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-02 — `003-b-modulo-points` (módulo `points`)
+
+Segundo módulo de `003-motor-de-puntos`. No repite la migración de `003-a`
+(`point_transactions`, el trigger de inmutabilidad, `student_profiles.
+total_points`) — la verifica y construye encima, reutilizando
+`LedgerService.recordMovement`/`reverseMovement` tal cual (sin tocar su
+firma). Antes de escribir código, leí también `prompts/003-c-modulo-
+leaderboard.md` y `prompts/003-d-integracion-y-pulido.md` para no invadir
+su alcance: `GET /me/progress` es de `003-c`, y las pruebas de integración
+cruzada T080/T082/T083/T084/T086 están reservadas explícitamente a `003-d`
+(corren después de que los tres módulos existan). Esto acotó bastante el
+trabajo de pruebas de esta ronda — el propio prompt de `003-b` solo pide
+una verificación **manual** de `points-cli reconcile --fix` en su cierre,
+no un test automatizado.
+
+Tres huecos reales en `contracts/points-and-leaderboard.md` (mismo tipo de
+hallazgo que motivó `contracts/activities.md` en `003-a`), corregidos antes
+de implementar: faltaban `404 NOT_FOUND` en `POST /points/adjustments` y en
+`POST /points/:transactionId/reverse`, `400 REASON_REQUIRED` en este último
+(RF-330 exige motivo también para revertir, el `CHECK
+manual_types_need_reason` incluye `REVERSAL`), y un ejemplo de respuesta
+exitosa para la reversión.
+
+**Refactor necesario, ya anticipado por un comentario propio de `002-c`**:
+`mail.module.ts` decía textualmente *"si otro módulo necesita una cola en
+el futuro, se promueve a `app.module.ts` entonces"* — `points` necesitaba
+su propia cola (`points-reconciliation`, BullMQ) para el job diario de
+reconciliación, así que `BullModule.forRootAsync` se movió de `mail.module.ts`
+a `app.module.ts`; cada módulo con cola propia ahora solo hace
+`BullModule.registerQueue({name})` sobre esa conexión compartida. Verificado
+en aislamiento (suite completa en verde) antes de seguir con código nuevo.
+
+**Decisión de diseño explícita**: `points` no cambia la firma de
+`LedgerService.recordMovement` para exponer `truncated`/`newTotal` (ya
+probada y committeada en `003-a`) — en vez de eso, `PointsAdjustmentsService`
+lee `total_points` antes y después de la misma transacción, un query extra
+barato, para derivar el truncamiento sin tocar infraestructura compartida.
+
+**`points-cli` (T046, Artículo II)**: `src/cli/points-cli.ts`, ejecutado
+con `ts-node` vía `NestFactory.createApplicationContext(AppModule)` — el
+mismo `AppModule` real, sin bootstrap duplicado. `--fix` exige `--operator
+<email>` resuelto contra un `ADMIN` real, para que la corrección quede
+auditada a nombre de alguien (RF-330/skill `seguridad-y-roles`). El job
+programado (T092) **solo alerta** (`Logger.error` + `audit_log`, `actorId:
+null`): RF-332 (verificar y alertar) y RF-333 (permitir recalcular) son
+operaciones deliberadamente distintas, la única vía que escribe es el CLI
+con un operador identificado.
+
+**Bug real encontrado y corregido, no anticipado por el diseño**: al
+ejecutar `points-cli` por primera vez, `ts-node` falló con `Cannot find
+module 'file-type'` — el shim de tipos de `src/types/file-type.d.ts` (ver
+`001-d`) nunca se había puesto a prueba fuera de `nest build`/`nest start`,
+que sí lo resuelven. `prisma/seed.ts`, el único script `ts-node` previo del
+proyecto, nunca importa `AppModule` completo y por eso nunca lo expuso.
+Causa real: `ts-node` en modo por defecto NO incluye archivos `.d.ts`
+ambientales que ningún archivo importa directo (a diferencia de `tsc`, que
+sí los incluye por el `include` implícito del proyecto) — corregido con la
+opción documentada `"ts-node": {"files": true}` en `tsconfig.json`. Suite
+de Jest y `nest build` reconfirmados en verde después del cambio (no usan
+la misma ruta de resolución de `ts-node`, así que no era un efecto
+garantizado).
+
+Verificación manual de `points-cli` (escenario 11 de `quickstart.md`, tal
+como pide el cierre del prompt): sembrado un alumno con `total_points`
+alterado a mano (`999` contra un ledger real de `30`); `reconcile --student
+--json` lo reportó (`consistent: false`); `--fix --operator <admin
+real>` lo corrigió y `audit_log` quedó con la fila
+`RECONCILIATION_FIX_APPLIED` (`before: 999, after: 30`, `actor_id` del
+admin resuelto); `--fix --operator <email inexistente>` se rechazó antes
+de tocar nada; `reconcile --all` después de la corrección devolvió `[]`.
+Datos de la verificación limpiados de la base de desarrollo al terminar.
+
+- Jest: 262/262 (234 de `001`+`002`+`003-a` + 28 nuevas de `points`:
+  contrato 17, integración 4, unitaria 7).
+- Playwright: 15/15 (14 previos + 1 nueva de `points`).
+- `docker compose ps`: `postgres`/`redis`/`mailpit` `healthy`.
+- `003` sigue con Implementación ⏳ pendiente en "Estado por feature" hasta
+  que `003-c`/`003-d` también cierren.
+- Commits: `7122cf8` (enmienda de contrato), `db162be` (refactor de BullMQ),
+  `65b9794` (módulo `points`: servicios, endpoints, auditoría,
+  reconciliación programada), `4840a80` (`points-cli` + fix de `ts-node`),
+  `2f0c202` (pruebas).
 
 ### 2026-09-02 — `003-a-modulo-activities` (módulo `activities`)
 
