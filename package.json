@@ -8,7 +8,8 @@
     "start:dev": "nest start --watch",
     "build": "nest build",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "points-cli": "ts-node src/cli/points-cli.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^12.0.0",
