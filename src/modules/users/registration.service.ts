@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { normalizeEmail } from '../../common/utils/normalize-email.util';
+import { isUniqueConstraintViolation } from '../../common/utils/prisma-error.util';
 import { AppException } from '../../common/exceptions/app.exception';
 import { PasswordHashingService } from '../auth/password-hashing.service';
 import { OneTimeTokenService } from '../auth/one-time-token.service';
@@ -129,12 +130,12 @@ export class RegistrationService {
         );
       });
     } catch (error) {
-      if (this.isUniqueViolation(error, 'users_email_key')) {
+      if (isUniqueConstraintViolation(error,'users_email_key')) {
         throw new AppException(409, 'DUPLICATE_FIELD', 'Este correo ya está registrado.', {
           field: 'email',
         });
       }
-      if (this.isUniqueViolation(error, 'student_profiles_student_code_key')) {
+      if (isUniqueConstraintViolation(error,'student_profiles_student_code_key')) {
         throw new AppException(409, 'DUPLICATE_FIELD', 'Este código de registro ya está en uso.', {
           field: 'studentCode',
         });
@@ -209,10 +210,5 @@ export class RegistrationService {
       status: updated.status,
       message: 'Tu cuenta fue verificada. Ya puedes participar.',
     };
-  }
-
-  private isUniqueViolation(error: unknown, constraintOrIndexHint: string): boolean {
-    const message = error instanceof Error ? error.message : String(error);
-    return message.includes(constraintOrIndexHint);
   }
 }

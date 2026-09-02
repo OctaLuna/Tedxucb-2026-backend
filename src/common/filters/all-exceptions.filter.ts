@@ -5,6 +5,7 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  PayloadTooLargeException,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { AppException } from '../exceptions/app.exception';
@@ -29,6 +30,13 @@ interface UniformErrorBody {
  * - El ValidationPipe de Nest lanza BadRequestException con un array de
  *   mensajes de class-validator, que no calza con el contrato — se
  *   reformatea siempre a VALIDATION_ERROR.
+ * - `PayloadTooLargeException` (subida de archivos, p. ej. avatar): Nest
+ *   YA traduce el `MulterError` de `LIMIT_FILE_SIZE` a esta excepción
+ *   propia dentro de `FileInterceptor` (`transformException` en
+ *   `@nestjs/platform-express`) antes de que llegue a este filtro -- un
+ *   `instanceof MulterError` aquí nunca matchea, es la clase equivocada
+ *   (bug real detectado en pruebas de contrato: caía en el `HTTP_ERROR`
+ *   genérico de abajo en vez de `FILE_TOO_LARGE`).
  * - Cualquier otra excepción no controlada se oculta detrás de un 500
  *   genérico: nunca se filtra un stack trace ni un mensaje interno al
  *   cliente (Artículo V, datos personales y superficie de error).
@@ -45,6 +53,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private toUniformBody(exception: unknown): UniformErrorBody {
     if (exception instanceof AppException) {
       return exception.getResponse() as UniformErrorBody;
+    }
+
+    if (exception instanceof PayloadTooLargeException) {
+      return {
+        statusCode: HttpStatus.PAYLOAD_TOO_LARGE,
+        error: 'FILE_TOO_LARGE',
+        message: 'El archivo excede el tamaño máximo permitido.',
+      };
     }
 
     if (exception instanceof BadRequestException) {

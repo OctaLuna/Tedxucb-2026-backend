@@ -8,6 +8,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  AVATAR_UPLOAD_DIR: z.string().default('./uploads/avatars'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

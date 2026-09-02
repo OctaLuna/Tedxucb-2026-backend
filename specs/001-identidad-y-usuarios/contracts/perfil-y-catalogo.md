@@ -16,10 +16,21 @@ RF-110 (`bio`, `interests`, `accessibilityNeeds`, `professionalLink`) y los
 de contacto (`phone`). **Rechaza** intentos de editar `studentCode` o
 `careerId` una vez `users.status = 'ACTIVE'` (RF-112) — usa
 `POST /me/correction-requests` (ver `usuarios-y-roles.md`) en su lugar.
+Mientras `users.status = 'PENDING'` (antes de verificar el correo), el
+alumno SÍ puede corregir `studentCode`/`careerId` directo por este mismo
+endpoint (ver `data-model.md`: el bloqueo se deriva de `users.status`, no
+existe como columna propia).
 
 | Código | `error` | Cuándo |
 |---|---|---|
 | `403` | `FIELD_LOCKED` | Intento de editar `studentCode`/`careerId` con la cuenta ya activa. `details.field` indica cuál. |
+| `422` | `INVALID_CAREER` | (Solo con cuenta `PENDING`) el `careerId` nuevo no existe en el catálogo. Mismo código que usa `POST /auth/register`. |
+| `409` | `DUPLICATE_FIELD` | (Solo con cuenta `PENDING`) el `studentCode` nuevo ya está en uso por otra cuenta. `details.field: "studentCode"`. Mismo código que usa `POST /auth/register`. |
+
+**Enmienda 2026-09-01** (`001-d`, ver `docs/progress.md`): estos dos modos
+de fallo no estaban en la redacción original de este contrato — se
+detectaron al implementar, reutilizando el patrón exacto de
+`registration.service.ts` (RF-106, unicidad permanente).
 
 ## `POST /api/v1/me/avatar`
 
@@ -35,12 +46,23 @@ existente (Historia 2, escenario 3).
 Respuesta `200`: `{ avatarUrl }`. El archivo se renombra en el servidor (skill
 `seguridad-y-roles`: nunca se confía en el nombre original).
 
+**Enmienda 2026-09-01:** `avatarUrl` es una ruta servida como estático
+(`/uploads/avatars/<uuid>.<ext>`), **sin** el prefijo `/api/v1` de las
+rutas de la API — el frontend no debe anteponerlo al construir la URL
+completa de la imagen.
+
 ## `GET /api/v1/students`
 
 Listado de monitoreo con filtros (RF-113): `career`, `faculty`, `status`,
 texto libre (nombre o código). Paginado,
 `{ data, meta: { page, limit, total, totalPages } }`. Cada fila incluye
 nombre, carrera, estado y `totalPoints` (columna que agrega `003`).
+
+**Enmienda 2026-09-01:** `003-motor-de-puntos` todavía no está
+implementada, así que la columna `student_profiles.total_points` no
+existe en la base real. Hasta que `003` la agregue, cada fila devuelve
+`totalPoints: null` explícito (nunca se omite la clave, para no cambiar
+la forma de la respuesta cuando `003` la complete).
 
 **Autorización:** exclusivo `ADMIN`. `STAFF` recibe `403` (RF-115).
 
