@@ -1,7 +1,9 @@
 import { Module, ValidationPipe } from '@nestjs/common';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { BullModule } from '@nestjs/bullmq';
 import { validateEnv } from './config/env.validation';
+import type { EnvConfig } from './config/env.validation';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -18,6 +20,18 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
+    }),
+    // Conexión de BullMQ compartida por toda la app (una sola vez, acá) --
+    // promovida desde mail.module.ts cuando points (003-b) necesitó su
+    // propia cola de reconciliación: cada módulo con cola propia solo
+    // registra BullModule.registerQueue({name}) sobre esta conexión, nunca
+    // un forRootAsync propio (ver comentario histórico en mail.module.ts).
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvConfig, true>) => ({
+        connection: { url: config.get('REDIS_URL', { infer: true }) },
+      }),
     }),
     PrismaModule,
     RedisModule,
