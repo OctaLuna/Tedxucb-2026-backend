@@ -32,7 +32,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ✅ hecho | `8ddd311` | — (documental) |
 | 002-b | `002-b-implementacion-sitio-publico.md` | Implementación — módulo `content` | ✅ hecho | `3ff6683`, `0d4365b`, `470a784` | Jest: 144/144 · Playwright: 9/9 |
 | 002-c | `002-c-implementacion-speakers.md` | Implementación — módulo `speakers` | ✅ hecho | `45cd9d7`, `fed2cc7` | Jest: 185/185 · Playwright: 11/11 |
-| 003-a | `003-a-modulo-activities.md` | Módulo `activities` (actividades, staff, check-in, QR) | ⏳ pendiente | — | — |
+| 003-a | `003-a-modulo-activities.md` | Módulo `activities` (actividades, staff, check-in, QR) | ✅ hecho | `bce9029`, `a81e9df`, `f73a48a`, `185aad2` | Jest: 234/234 · Playwright: 14/14 |
 | 003-b | `003-b-modulo-points.md` | Módulo `points` (ledger, ajustes, reversiones, reclamos) | ⏳ pendiente | — | — |
 | 003-c | `003-c-modulo-leaderboard.md` | Módulo `leaderboard` (ranking, progreso, export) | ⏳ pendiente | — | — |
 | 003-d | `003-d-integracion-y-pulido.md` | Integración cruzada y pulido — Motor de puntos | ⏳ pendiente | — | — |
@@ -44,6 +44,87 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-02 — `003-a-modulo-activities` (módulo `activities`)
+
+Primer módulo de `003-motor-de-puntos`, la feature de mayor riesgo del
+proyecto: decide quién de los alumnos ocupa las 80 butacas del auditorio.
+El prompt exigió, como Paso 0, resolver 5 marcadores `[NECESITA
+CLARIFICACIÓN]` (T001-T005) antes de tocar código. Una respuesta (T005)
+resultó ser un **cambio de alcance real**, no una decisión puntual: se
+elimina toda la Historia 5 (reclamos: entidad `PointClaim`, endpoints
+`/claims`, RF-334-337) y el concepto de "fecha de corte" del ranking — el
+alumno que crea que le falta un punto lo reporta por canal informal, el
+admin lo resuelve con un `BONUS`/`ADJUSTMENT` manual auditado, y el ledger
+de solo inserción ya da la trazabilidad que un canal formal habría dado.
+Documentado en **ADR-008**. La ronda también resolvió: T001 (ranking
+completo visible para todos, RF-342), T002 (sin umbral fijo de anomalía —
+T090 queda como deuda técnica explícita, no bloqueante), T003 (no existen
+actividades masivas — RF-323), T004 (actividades sin límite de asistentes,
+solo puntos por alumno; vigencia del token QR 60s). Cascada de enmiendas a
+`spec.md`, `data-model.md`, `plan.md`, `contracts/checkin.md`,
+`contracts/points-and-claims.md` (renombrado a
+`points-and-leaderboard.md`), `tasks.md`, `quickstart.md`, y a los prompts
+`003-b`/`003-c`/`003-d` para que dejen de referenciar lo eliminado. Se
+escribió `contracts/activities.md`, que nunca había existido pese a que
+RF-301 a RF-310c lo exigían (Artículo IX: contrato antes que código).
+
+Migración `activities`/`activity_staff`/`attendances`/`point_transactions`
+(detalle en el commit `bce9029`) con las cinco garantías de la skill
+`motor-de-puntos` en el esquema, no solo en el servicio: índice único
+parcial, `idempotency_key` única, `CHECK (total_points >= 0)`, trigger
+`forbid_ledger_mutation`. `LedgerService` nuevo en `src/common/ledger/` —
+decisión propia, distinta de la sugerida por el agente de diseño (que
+proponía dejarlo temporalmente dentro de `activities/`): es infraestructura
+compartida real, no cuenta contra el límite de 3 módulos por feature, y
+evita un archivo "temporal" que en la práctica nunca se relocaliza. `003-b`
+lo reutilizará tal cual para ajustes/bonos/penalizaciones.
+
+**Hallazgos y decisiones reales durante el diseño y la implementación:**
+- **Bug real en `data-model.md` original**: el índice único que impedía el
+  doble check-in ignoraba `allow_multiple_checkins`, violando RF-315.
+  Corregido añadiendo `multiple_allowed` denormalizado a `attendances`
+  (copiado de la actividad al insertar, mismo patrón que ya usa
+  `points_value` para RF-306).
+- **Contrato de idempotencia original prometía una distinción imposible**:
+  `checkin.md` distinguía 200 (reintento propio) de 409 (duplicado ajeno),
+  pero el índice único de `attendances` dispara siempre antes que la clave
+  de idempotencia del ledger (mismo orden de inserción fijado), así que esa
+  distinción no es mecánicamente alcanzable. Reescrito: cualquier repetición
+  — propia o ajena — es `409 ALREADY_CHECKED_IN` con los datos del registro
+  previo. Simplificó también el código real: sin rama de replay a 200.
+- **Bug de idempotencia propio, encontrado escribiendo la prueba de
+  `allowMultipleCheckins=true`**: la clave `checkin:{activityId}:
+  {studentId}` es idéntica para dos escaneos legítimos del mismo alumno
+  cuando la actividad admite registros múltiples, y el segundo chocaba
+  contra la restricción única aunque fuera válido. Corregido omitiendo la
+  clave (`undefined`) en ese caso — Postgres permite múltiples `NULL` bajo
+  `UNIQUE`. Limitación conocida y deliberada, documentada en el código: sin
+  `allowMultipleCheckins` (el caso real, ya que T003 resolvió que no hay
+  actividades masivas) la protección de idempotencia sigue intacta.
+- **El `REVOKE UPDATE, DELETE ON point_transactions FROM ted` de la
+  migración es efectivamente decorativo**: el rol `ted` es dueño de la
+  tabla (la crea vía `migrate`), y en Postgres el dueño de una tabla se
+  salta cualquier `GRANT`/`REVOKE` sobre ella propia. La protección real es
+  solo el trigger `forbid_ledger_mutation`. Se deja documentado como
+  límite conocido, no oculto — separar un segundo rol de Postgres sin
+  *ownership* es infraestructura nueva, fuera de alcance de este módulo.
+- **Dos bugs propios en las pruebas, no en el código de producción**: el
+  helper `seedActivity()` creaba el usuario administrador por defecto sin
+  `passwordHash`, violando el `CHECK password_required_unless_invited`
+  (corregido reusando `seedUser()` en vez de `prisma.user.create` a mano);
+  y `activities-crud.contract.spec.ts` usaba `prismaTestClient` sin
+  importarlo.
+
+- Jest: 234/234 (185 de `001`+`002` + 49 nuevas de `activities`: contrato
+  31, integración 10, unitarias 8).
+- Playwright: 14/14 (11 previos + 3 nuevas de `activities`).
+- `docker compose ps`: `postgres`/`redis`/`mailpit` `healthy`.
+- `003` sigue con Implementación ⏳ pendiente en "Estado por feature" hasta
+  que `003-b`/`003-c`/`003-d` también cierren.
+- Commits: `1095ff4` (docs: clarify T001-T005 + ADR-008, sesión anterior),
+  `bce9029` (esquema + migración), `a81e9df` (`LedgerService`), `f73a48a`
+  (módulo `activities`), `185aad2` (pruebas).
 
 ### 2026-09-02 — `002-c-implementacion-speakers` (módulo `speakers`) — `002` completo
 
