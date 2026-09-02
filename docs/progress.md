@@ -13,7 +13,7 @@ explícitas de qué fila y qué entrada de bitácora le corresponde (ver
 
 | Feature | Spec | Plan | Tasks | Implementación |
 |---|---|---|---|---|
-| `001` — Identidad y usuarios | ✅ | ✅ | ✅ | ⏳ pendiente |
+| `001` — Identidad y usuarios | ✅ | ✅ | ✅ | ✅ |
 | `002` — Sitio público | ✅ | ⏳ pendiente | ⏳ pendiente | ⏳ pendiente |
 | `003` — Motor de puntos | ✅ | ✅ | ✅ | ⏳ pendiente |
 | `004` — Selección de cupos | ✅ | ⏳ pendiente | ⏳ pendiente | ⏳ pendiente |
@@ -28,7 +28,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 001-a | `001-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Identidad | ✅ hecho | `75697a6` | — (documental) |
 | 001-b | `001-b-implementacion-identidad.md` | Implementación — módulo `auth` | ✅ hecho | `6859adc`, `08cbd03` | Jest: 51/51 · Playwright: 2/2 |
 | 001-c | `001-c-implementacion-users.md` | Implementación — módulo `users` | ✅ hecho | `81372c7`, `a9f76c8` | Jest: 88/88 · Playwright: 4/4 |
-| 001-d | `001-d-implementacion-profiles.md` | Implementación — módulo `profiles` | ⏳ pendiente | — | — |
+| 001-d | `001-d-implementacion-profiles.md` | Implementación — módulo `profiles` | ✅ hecho | `97643e8`, `3eeb7aa` | Jest: 115/115 · Playwright: 6/6 |
 | 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ⏳ pendiente | — | — |
 | 002-b | `002-b-implementacion-sitio-publico.md` | Implementación — Sitio público | ⏳ pendiente | — | — |
 | 003-a | `003-a-modulo-activities.md` | Módulo `activities` (actividades, staff, check-in, QR) | ⏳ pendiente | — | — |
@@ -43,6 +43,76 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-01 — `001-d-implementacion-profiles` (módulo `profiles`) — `001` completo
+
+Tercer y último módulo de `001`. **Primera feature con Implementación ✅
+completa.** No crea tablas nuevas — todo ya migrado por `users`.
+
+Diseño validado contra el código real ya escrito antes de implementar (no
+solo el contrato), lo que cambió varias decisiones del plan inicial:
+
+- **Avatar**: `file-type` (ya dependencia transitiva de
+  `@nestjs/common@12.0.1` — el propio Nest lo usa en su
+  `FileTypeValidator` interno, y el flag ESM que hacía falta ya estaba
+  puesto desde `001-b`) en vez de un util de magic bytes a mano.
+  `multer` `memoryStorage` + `useStaticAssets` de
+  `@nestjs/platform-express` para servir avatares, sin
+  `@nestjs/serve-static` (Artículo VIII: no envolver algo que el
+  framework ya expone directo). `file-type` no resuelve con
+  `moduleResolution: "node"` (usa `exports` condicional en su
+  `package.json`) — shim de tipos acotado en `src/types/file-type.d.ts`
+  en vez de cambiar la configuración global de TypeScript a mitad de
+  proyecto.
+- **Rutas `/students` en dos módulos distintos** (`users`: `pending`/
+  `approve`/`reject`; `profiles`: listado/detalle/`export`): defensa en
+  3 capas (orden de `imports` en `app.module.ts`, orden de métodos
+  dentro de la clase, `ParseUUIDPipe` en `:id`) más una prueba de
+  integración que confirma que `/students/pending` sigue cayendo en el
+  handler de `users` — la única defensa real contra una regresión
+  silenciosa si alguien reordena los imports en el futuro.
+- **`totalPoints`** (columna que agrega `003`, no implementada):
+  `null` explícito, nunca se omite la clave — enmienda fechada en
+  `contracts/perfil-y-catalogo.md` en vez de dejar la spec divergir del
+  código en silencio.
+- **`PATCH /me/profile` en `PENDING`**: permite corregir
+  `studentCode`/`careerId` libremente (RF-112 se deriva de
+  `users.status`, no es columna), reutilizando el patrón exacto de
+  `registration.service.ts` (`422 INVALID_CAREER`, `409 DUPLICATE_FIELD`
+  con doble capa contra condición de carrera). Estos dos modos de fallo
+  no estaban en el contrato original — también enmendado.
+  `isUniqueConstraintViolation` se extrajo a `common/utils/` (ya se
+  repetía en 3 servicios).
+- **Exportación CSV** a mano, con BOM UTF-8 (sin esto, Excel en Windows
+  rompe tildes/`ñ`) y campos siempre citados; auditada
+  (`STUDENTS_EXPORTED`).
+- **`GET /public/consent-version`** con `RateLimitGuard` — la skill
+  `seguridad-y-roles` exige límite propio en todo `/public/*`, y no
+  estaba contemplado en el diseño inicial.
+
+**Bugs reales encontrados y corregidos vía pruebas:**
+- `POST /me/avatar` sin `@HttpCode(200)` (Nest devuelve 201 por
+  defecto en POST).
+- **`AllExceptionsFilter` nunca capturaba el `413` de un archivo
+  demasiado grande**: Nest ya traduce el `MulterError` de
+  `LIMIT_FILE_SIZE` a su propia `PayloadTooLargeException` dentro de
+  `FileInterceptor`, antes de que la excepción llegue al filtro — un
+  `instanceof MulterError` ahí nunca matchea (caía en `HTTP_ERROR`
+  genérico). Corregido capturando `PayloadTooLargeException`.
+- **`playwright.config.ts` rompía la subida de avatar solo en E2E**:
+  fijaba `Content-Type: application/json` global vía
+  `extraHTTPHeaders`, que pisaba el `multipart/form-data;
+  boundary=...` que Playwright arma automáticamente para `multipart:
+  {...}`. La misma petición funcionaba con `curl` directo contra el
+  mismo servidor — confirma que era un problema de la config de
+  pruebas, no del código de la app. Se quitó el header fijo; Playwright
+  ya calcula el `Content-Type` correcto según la opción usada.
+
+- Jest: 115/115 (acumulado con `auth` + `users`).
+- Playwright: 6/6 (`health`, `auth`, `users` ×2, `profiles` ×2).
+- `docker compose ps`: `postgres`/`redis` `healthy` (Docker Desktop se
+  había cerrado entre sesiones otra vez; se reinició al arrancar esta).
+- Commits: `97643e8` (módulo `profiles`), `3eeb7aa` (pruebas).
 
 ### 2026-09-01 — `001-c-implementacion-users` (módulo `users`)
 
