@@ -4,6 +4,7 @@ const baseEnv = {
   DATABASE_URL: 'postgresql://ted:ted@localhost:5432/ted_backend?schema=public',
   REDIS_URL: 'redis://localhost:6379',
   JWT_SECRET: 'a'.repeat(32),
+  QR_TOKEN_SECRET: 'b'.repeat(32),
 };
 
 describe('validateEnv', () => {
