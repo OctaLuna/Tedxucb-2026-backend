@@ -27,7 +27,7 @@ export async function cleanAllTables(): Promise<void> {
   await prismaTestClient.$executeRawUnsafe(
     'TRUNCATE TABLE audit_log, refresh_tokens, auth_tokens, correction_requests, ' +
       'consent_acceptances, consent_versions, student_profiles, careers, faculties, ' +
-      'user_roles, users RESTART IDENTITY CASCADE',
+      'events, content_blocks, user_roles, users RESTART IDENTITY CASCADE',
   );
 }
 
