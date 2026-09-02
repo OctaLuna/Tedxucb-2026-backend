@@ -29,7 +29,9 @@ CREATE TABLE activities (
   ends_at           TIMESTAMPTZ NOT NULL,
   checkin_opens_at  TIMESTAMPTZ NOT NULL,
   checkin_closes_at TIMESTAMPTZ NOT NULL,
-  capacity          INTEGER,
+  -- Sin campo de cupo: las actividades no limitan asistentes (confirmado
+  -- 2026-09-02 con el responsable del proyecto). Lo único que varía por
+  -- actividad es cuánto otorga, nunca cuánta gente admite.
   allow_multiple_checkins BOOLEAN NOT NULL DEFAULT false,
   status            TEXT NOT NULL DEFAULT 'DRAFT',
   created_by        UUID NOT NULL REFERENCES users(id),
@@ -71,21 +73,33 @@ CREATE TABLE attendances (
   student_id    UUID NOT NULL REFERENCES student_profiles(user_id),
   method        TEXT NOT NULL,
   status        TEXT NOT NULL DEFAULT 'APPROVED',
+  -- Copia de activities.allow_multiple_checkins al momento de insertar, no
+  -- una referencia en vivo -- un índice único parcial no puede consultar
+  -- otra tabla en su predicado. Mismo principio que ya usa este documento
+  -- para RF-306 con points_value (corrección 2026-09-02: el índice de abajo
+  -- ignoraba este campo y violaba RF-315 para actividades que sí admiten
+  -- registros múltiples).
+  multiple_allowed BOOLEAN NOT NULL DEFAULT false,
   validated_by  UUID REFERENCES users(id),
   note          TEXT,
   device_hash   TEXT,
   ip_address    INET,
   checked_in_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT valid_method CHECK (method IN ('STAFF_SCAN','MANUAL','CLAIM')),
+  -- 'CLAIM' se elimina 2026-09-02: Historia 5 (reclamos) fue eliminada y
+  -- ningún flujo lo produce (Artículo VII: no dejar código muerto en el
+  -- CHECK). Si el canal de reclamos se reintroduce, se reabre con su propio
+  -- ciclo de spec y ese ciclo agrega el valor de vuelta.
+  CONSTRAINT valid_method CHECK (method IN ('STAFF_SCAN','MANUAL')),
   CONSTRAINT valid_status CHECK (status IN ('APPROVED','REJECTED')),
   CONSTRAINT manual_requires_note
     CHECK (method <> 'MANUAL' OR (note IS NOT NULL AND length(trim(note)) > 0))
 );
 
--- RF-315: impide dos asistencias vivas del mismo alumno en la misma actividad
+-- RF-315: impide dos asistencias vivas del mismo alumno en la misma
+-- actividad, EXCEPTO cuando la actividad admite registros múltiples.
 CREATE UNIQUE INDEX one_attendance_per_activity
   ON attendances (activity_id, student_id)
-  WHERE status <> 'REJECTED';
+  WHERE status <> 'REJECTED' AND NOT multiple_allowed;
 
 CREATE INDEX idx_attendance_student ON attendances (student_id, checked_in_at DESC);
 CREATE INDEX idx_attendance_device  ON attendances (device_hash, checked_in_at DESC);
@@ -95,7 +109,10 @@ CREATE INDEX idx_attendance_device  ON attendances (device_hash, checked_in_at D
 manual sin justificación es rechazado aunque el código de aplicación lo
 permitiera por error.
 
-El índice sobre `device_hash` sostiene la detección de anomalías de RF-322.
+El índice sobre `device_hash` sostiene la detección de anomalías de RF-322
+(deuda técnica sin umbral fijo, ver spec.md — el índice ya soporta la
+consulta manual del administrador aunque no exista todavía la alerta
+automática).
 
 ## 4. Libro mayor de puntos
 
@@ -153,33 +170,11 @@ CREATE TRIGGER no_update_point_transactions
   FOR EACH ROW EXECUTE FUNCTION forbid_ledger_mutation();
 ```
 
-## 5. Reclamos
+> **Nota (2026-09-02):** esta sección albergaba la tabla `point_claims`
+> (reclamos). Se elimina completa junto con la Historia 5 del spec — ver
+> ADR-008. Las secciones siguientes se renumeraron.
 
-```sql
-CREATE TABLE point_claims (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id    UUID NOT NULL REFERENCES student_profiles(user_id),
-  activity_id   UUID NOT NULL REFERENCES activities(id),
-  description   TEXT NOT NULL,
-  status        TEXT NOT NULL DEFAULT 'OPEN',
-  resolution    TEXT,
-  resolved_by   UUID REFERENCES users(id),
-  resolved_at   TIMESTAMPTZ,
-  attendance_id UUID REFERENCES attendances(id),
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT valid_claim_status CHECK (status IN ('OPEN','APPROVED','REJECTED')),
-  CONSTRAINT resolved_needs_resolution
-    CHECK (status = 'OPEN' OR (resolution IS NOT NULL AND resolved_by IS NOT NULL))
-);
-
-CREATE UNIQUE INDEX one_open_claim_per_activity
-  ON point_claims (student_id, activity_id) WHERE status = 'OPEN';
-```
-
-El índice parcial evita que un alumno abra el mismo reclamo diez veces mientras
-espera respuesta, sin impedirle abrir uno nuevo si el anterior fue rechazado.
-
-## 6. Caché de puntaje
+## 5. Caché de puntaje
 
 Vive en `student_profiles` (feature `001`):
 
@@ -208,7 +203,7 @@ HAVING sp.total_points <> COALESCE(SUM(pt.points), 0);
 Este `SELECT` debe devolver cero filas siempre. Si devuelve alguna, hay un
 incidente que investigar, no un número que corregir en silencio.
 
-## 7. Ranking
+## 6. Ranking
 
 Consulta de referencia para RF-338 y RF-339. El desempate usa la fecha del
 movimiento más reciente: entre dos alumnos con igual puntaje, precede quien lo
@@ -233,7 +228,7 @@ WHERE u.status = 'ACTIVE'
 ORDER BY position;
 ```
 
-## 8. Relaciones
+## 7. Relaciones
 
 ```
 activity_categories ──< activities ──< activity_staff >── users
@@ -242,15 +237,18 @@ activity_categories ──< activities ──< activity_staff >── users
                             │        │
                             │        └──1:1── point_transactions
                             │
-                            ├──< point_claims >── student_profiles
                             └──< point_transactions
 
 point_transactions ──> point_transactions  (reverses_id, autorreferencia)
 ```
 
-## 9. Datos semilla
+## 8. Datos semilla
 
-Categorías de actividad y escala de puntos: **bloqueado por RF-310**. No se
-siembra el catálogo hasta que la organización defina qué actividades otorgan
-puntos y cuántos. Sembrar valores inventados produciría pruebas que validan una
-escala ficticia.
+Categorías de actividad: **desbloqueado desde 2026-08-30** (RF-310 resuelto,
+RF-310a añade valor sugerido por categoría). No hay, a la fecha de este
+diseño, ninguna lista real de categorías provista por el responsable del
+proyecto. **No se siembran en producción** — mismo criterio que el catálogo
+de facultades de prueba en `001` (marcadas `[PRUEBA]`) y la ausencia
+deliberada de speakers sembrados en `002`: sembrar valores inventados
+produciría pruebas que validan una escala ficticia. Las pruebas crean sus
+propias categorías vía un helper de prueba, nunca del seed de producción.

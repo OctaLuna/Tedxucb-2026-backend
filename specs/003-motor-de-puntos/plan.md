@@ -88,13 +88,13 @@ del alumno caduca antes de poder circular por WhatsApp.
 
 ## Modelo de datos (resumen — detalle en `data-model.md`)
 
-Seis entidades. `Activity` y `ActivityCategory` definen qué otorga puntos y
-cuántos. `ActivityStaff` materializa quién puede validar dónde, y es lo que
-consulta el guard de permisos. `Attendance` registra el hecho de la
+Cinco entidades (2026-09-02: `PointClaim` se elimina junto con el canal de
+reclamos, ver ADR-008). `Activity` y `ActivityCategory` definen qué otorga
+puntos y cuántos. `ActivityStaff` materializa quién puede validar dónde, y es
+lo que consulta el guard de permisos. `Attendance` registra el hecho de la
 participación con su método y validador. `PointTransaction` es el libro mayor:
 la única fuente de verdad del puntaje, con referencias a la asistencia que lo
-originó y, en el caso de una reversión, al movimiento que anula. `PointClaim`
-soporta el canal de reclamos.
+originó y, en el caso de una reversión, al movimiento que anula.
 
 La relación entre `Attendance` y `PointTransaction` es uno a uno y se crea en la
 misma transacción: no puede existir una asistencia sin su movimiento de puntos
@@ -102,6 +102,10 @@ ni al revés.
 
 ## Contratos (resumen — detalle en `contracts/`)
 
+- CRUD de actividades, categorías, asignación de staff y cancelación —
+  `contracts/activities.md` (RF-301 a RF-310c; no existía en el diseño
+  original de `003`, se agrega 2026-09-02 al ejecutar `003-a` — Artículo IX
+  exige el contrato antes que el código).
 - `POST /activities/:id/checkin` — la operación crítica. Contrato completo en
   `contracts/checkin.md`, incluyendo los seis modos de fallo.
 - `POST /activities/:id/checkin/manual` — alternativa con justificación
@@ -109,8 +113,9 @@ ni al revés.
 - `GET /me/qr` — token rotativo del alumno.
 - `GET /me/points` — historial paginado.
 - `POST /points/adjustments` y `POST /points/:id/reverse` — correcciones.
-- `POST /claims` y `PATCH /claims/:id` — reclamos.
-- `GET /leaderboard` — ranking.
+- `GET /leaderboard` — ranking. Detalle en `contracts/points-and-leaderboard.md`
+  (renombrado 2026-09-02, antes `points-and-claims.md` — sin reclamos, ver
+  ADR-008).
 
 ## Orden de creación de archivos (test-first, obligatorio)
 
@@ -123,7 +128,8 @@ ni al revés.
 
 | Gate que falló | Por qué fue necesario | Alternativa más simple descartada y por qué |
 |---|---|---|
-| Simplicidad (Art. VII): la propuesta original declaraba 14 módulos NestJS, muy por encima del límite de 3 | Se reduce a **3 módulos para esta feature**: `activities` (actividades, staff asignado, asistencias), `points` (libro mayor, ajustes, reversiones, reclamos) y `leaderboard` (ranking y consultas agregadas). El límite se cumple dentro del alcance de la feature. Los módulos transversales de identidad y contenido pertenecen a `001` y `002` y se contabilizan allí. | Se descartó fusionar todo en un módulo único: mezclar el libro mayor con la gestión de actividades haría que la lógica más sensible del sistema —la que decide quién entra al evento— quedara diluida entre operaciones de mantenimiento de catálogo, y perdería su propia frontera de pruebas. La separación de `points` como módulo aislado es exactamente lo que exige el Artículo I. |
+| Simplicidad (Art. VII): la propuesta original declaraba 14 módulos NestJS, muy por encima del límite de 3 | Se reduce a **3 módulos para esta feature**: `activities` (actividades, staff asignado, asistencias, check-in), `points` (ajustes, reversiones administrativas, reconciliación) y `leaderboard` (ranking y consultas agregadas). El límite se cumple dentro del alcance de la feature. Los módulos transversales de identidad y contenido pertenecen a `001` y `002` y se contabilizan allí. `LedgerService` (registrar/revertir un movimiento con bloqueo de fila) vive en `src/common/ledger/` — infraestructura compartida entre `activities` y `points`, mismo criterio que `PrismaService`/`MailModule`, no cuenta contra el límite de 3. | Se descartó fusionar todo en un módulo único: mezclar el libro mayor con la gestión de actividades haría que la lógica más sensible del sistema —la que decide quién entra al evento— quedara diluida entre operaciones de mantenimiento de catálogo, y perdería su propia frontera de pruebas. La separación de `points` como módulo aislado es exactamente lo que exige el Artículo I. |
+| Orden de tareas de `tasks.md` no refleja el grafo de dependencias real entre `003-a`/`003-b` (hallazgo 2026-09-02) | T033 (`point_transactions`), T034 (trigger de inmutabilidad) y T036 (`total_points`) están asignadas nominalmente al Grupo 2, y el prompt `003-a-modulo-activities.md` no las listó en su Paso 1 — pero el check-in de `003-a` (Grupo 5) es imposible sin ellas. Se ejecutan en `003-a`; `003-b` verifica que ya existen en vez de repetirlas. | No hay alternativa real: dividir la migración entre dos prompts dejaría `003-a` con código que no compila contra el esquema. |
 
 ## Validación / Quickstart (resumen — detalle en `quickstart.md`)
 

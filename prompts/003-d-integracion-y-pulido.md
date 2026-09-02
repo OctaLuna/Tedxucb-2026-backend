@@ -31,7 +31,7 @@ llega con `004`, aquí cubre hasta revertir):
 - **T084** — cambiar el valor de puntos de una actividad no recalcula lo ya
   otorgado (los movimientos ya emitidos conservan el valor vigente al
   momento del abono).
-- **T085** — flujo completo de reclamo aprobado, de punta a punta.
+- **T085 no aplica — eliminada 2026-09-02** (reclamos, ver ADR-008).
 - **T086** — reconciliación detecta y corrige una caché alterada a mano
   (`points-cli reconcile --all --fix --json`).
 
@@ -46,7 +46,8 @@ llega con `004`, aquí cubre hasta revertir):
   ejecutarse tal cual están descritos, con comandos/URLs reales donde el
   documento original dejaba el paso en abstracto).
 - **T103** — **no es una tarea que un agente pueda cerrar**: es el escenario
-  14 del quickstart, una prueba de campo física (20 alumnos simulados, 2
+  13 del quickstart (renumerado 2026-09-02, antes 14 — se eliminó el
+  escenario de reclamos), una prueba de campo física (20 alumnos simulados, 2
   staff, teléfonos de gama media, red de campus real) que debe ejecutarse
   antes de la primera actividad real del evento. Déjala anotada en
   `docs/progress.md` como pendiente **operativo**, no de código — no la
@@ -54,12 +55,13 @@ llega con `004`, aquí cubre hasta revertir):
 
 ## Pruebas y cierre
 
-1. Jest: las 7 pruebas de integración (T080-T086), todas contra PostgreSQL
-   real.
-2. Playwright: si algún flujo cruzado (p. ej. reclamo aprobado → aparece en
-   `/me/points` → afecta `/leaderboard`) no está ya cubierto por los E2E de
-   `003-a/b/c`, añade `tests/e2e/points-integration.e2e.spec.ts` con ese
-   caso. No dupliques specs que ya existen.
+1. Jest: las 6 pruebas de integración (T080-T084, T086 — T085 eliminada,
+   ADR-008), todas contra PostgreSQL real.
+2. Playwright: si algún flujo cruzado entre `003-a/b/c` (p. ej. un ajuste
+   administrativo → aparece en `/me/points` → afecta `/leaderboard`) no está
+   ya cubierto por sus E2E individuales, añade
+   `tests/e2e/points-integration.e2e.spec.ts` con ese caso. No dupliques
+   specs que ya existen.
 3. Actualiza `docs/progress.md`: fila `003-d` → ✅ hecho; marca `003` con
    Implementación ✅ en "Estado por feature" (los tres módulos + esta
    integración ya están cerrados); dejar constancia explícita de que T103

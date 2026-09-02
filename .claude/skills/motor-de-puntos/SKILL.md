@@ -133,6 +133,7 @@ problema es el token, la hora o un registro que ya existía.
 | 400 | `INVALID_QR_TOKEN` | Firma inválida |
 | 401 | `EXPIRED_QR_TOKEN` | Token vencido |
 | 403 | `STAFF_NOT_ASSIGNED` | Validador sin asignación a la actividad |
+| 403 | `STUDENT_NOT_VERIFIED` | Cuenta del alumno pendiente de verificación (RF-122) |
 | 409 | `CHECKIN_WINDOW_CLOSED` | Fuera de ventana o actividad no publicada |
 | 409 | `ALREADY_CHECKED_IN` | Ya registrado. Incluye hora y validador previos |
 

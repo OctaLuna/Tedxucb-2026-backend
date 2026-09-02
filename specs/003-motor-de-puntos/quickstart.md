@@ -140,19 +140,7 @@ exactamente lo que el Artículo IV prohíbe.
 
 **Se espera:** puntaje 0, nunca negativo, y la respuesta indica el truncamiento.
 
-## Escenario 11 — Reclamo
-
-**Objetivo:** RF-334 a RF-336. Historia 5.
-
-1. El alumno 3 abre un reclamo sobre una actividad en la que no fue registrado.
-2. Intenta abrir el mismo reclamo otra vez.
-3. El administrador lo aprueba.
-
-**Se espera:** el segundo intento se rechaza por reclamo abierto; tras la
-aprobación el alumno recibe los puntos y su historial identifica el origen como
-reclamo.
-
-## Escenario 12 — Reconciliación
+## Escenario 11 — Reconciliación
 
 **Objetivo:** RF-332, RF-333, CE-303.
 
@@ -165,7 +153,7 @@ desde el libro mayor y queda constancia en auditoría.
 **Falla si:** el proceso no detecta la diferencia. Sin esta red de seguridad, una
 desincronización puede llegar sin ser vista hasta el día del corte.
 
-## Escenario 13 — Cambio de valor de una actividad
+## Escenario 12 — Cambio de valor de una actividad
 
 **Objetivo:** RF-306. Historia 3, escenario 3.
 
@@ -176,7 +164,7 @@ desincronización puede llegar sin ser vista hasta el día del corte.
 
 **Se espera:** los anteriores conservan 10; el nuevo recibe 20.
 
-## Escenario 14 — Prueba de campo
+## Escenario 13 — Prueba de campo
 
 **Objetivo:** CE-301, Artículo VI. **Obligatoria antes de la primera actividad
 real.**

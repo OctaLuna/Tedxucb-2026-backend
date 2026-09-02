@@ -108,7 +108,7 @@ FROM attendances WHERE status = 'APPROVED' GROUP BY method;
 
 ## Antes de la primera actividad real
 
-- [ ] Ejecutado el escenario 14 de `quickstart.md` **en campo**: 20 alumnos, dos
+- [ ] Ejecutado el escenario 13 de `quickstart.md` **en campo**: 20 alumnos, dos
       dispositivos, red del campus, teléfonos de gama media
 - [ ] Verificado que cada registro se completa en menos de 5 segundos
 - [ ] Reconciliación diaria programada y con alerta configurada

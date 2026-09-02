@@ -1,7 +1,10 @@
-# Contrato: Puntos, correcciones, reclamos y ranking
+# Contrato: Puntos, correcciones y ranking
 
 **Feature:** `003-motor-de-puntos`
-**Requisitos que satisface:** RF-324 a RF-342
+**Requisitos que satisface:** RF-324 a RF-333, RF-338 a RF-342
+
+> Renombrado 2026-09-02 (antes `points-and-claims.md`): sin sección de
+> reclamos, ver ADR-008.
 
 ---
 
@@ -47,12 +50,16 @@ cambió sin explicación.
 {
   "totalPoints": 45,
   "rank": 37,
-  "totalStudents": 312,
-  "pointsToCutoff": 8
+  "totalStudents": 312
 }
 ```
 
-`[NECESITA CLARIFICACIÓN: ¿se muestra pointsToCutoff? Informa y motiva, pero también revela la posición del corte antes de que exista, y puede desalentar a quien esté lejos.]`
+**Resuelto 2026-09-02:** se elimina `pointsToCutoff`. No solo porque ya no
+existe "corte" como fecha del sistema (ver ADR-008), sino porque calcularlo
+exigiría que `003` conociera el número de cupos, un dato que pertenece a
+`004` — `spec.md` de `003` declara explícitamente que no cubre la asignación
+de cupos. Si se quiere mostrar proximidad al umbral de selección, ese
+cálculo vive en `004` (que sí conoce el número de cupos), no aquí.
 
 ---
 
@@ -104,46 +111,13 @@ motor, no por confianza en la lógica de aplicación.
 
 ---
 
-## Reclamos
-
-### `POST /api/v1/claims` — rol `ALUMNO`
-
-```json
-{
-  "activityId": "3c7a...",
-  "description": "Asistí al taller del 12 de septiembre y firmé la lista, pero no aparece en mi historial."
-}
-```
-
-| Código | `error` | Cuándo |
-|---|---|---|
-| `409` | `CLAIM_ALREADY_OPEN` | Ya existe un reclamo abierto para esa actividad. |
-| `409` | `ALREADY_HAS_POINTS` | El alumno ya tiene puntos por esa actividad. |
-| `410` | `CLAIMS_CLOSED` | El plazo de reclamos venció (RF-337). |
-
-### `GET /api/v1/claims` — `ADMIN` ve todos; `ALUMNO` ve solo los suyos
-
-### `PATCH /api/v1/claims/{id}` — rol `ADMIN`
-
-```json
-{ "status": "APPROVED", "resolution": "Verificado contra la lista física de asistencia." }
-```
-
-Aprobar un reclamo crea la asistencia con `method: "CLAIM"` y otorga los puntos
-en la misma transacción, con la misma garantía de atomicidad del check-in
-(RF-336). El movimiento queda identificado como originado en un reclamo, de modo
-que la vía de excepción sea siempre distinguible de la vía normal.
-
-Rechazar exige `resolution`: el alumno tiene derecho a saber por qué.
-
----
-
 ## Ranking
 
 ### `GET /api/v1/leaderboard?limit=50&career={id}&faculty={id}`
 
-**Autorización:** `ADMIN` accede al ranking completo. El acceso de los alumnos
-depende de RF-342.
+**Autorización:** cualquier alumno autenticado, además de `ADMIN` y `STAFF`,
+accede al ranking completo (RF-342, **resuelto 2026-09-02:** visible para
+todos, no solo la posición propia).
 
 ```json
 {
@@ -156,8 +130,6 @@ depende de RF-342.
 
 Los alumnos deshabilitados quedan excluidos (RF-340). El desempate es
 determinista: precede quien alcanzó el puntaje primero (RF-339).
-
-`[NECESITA CLARIFICACIÓN: RF-342 — ¿ranking completo visible para todos los alumnos, o cada uno ve solo su posición?]`
 
 ### `GET /api/v1/leaderboard/export` — rol `ADMIN`
 
@@ -183,8 +155,9 @@ $ points-cli reconcile --student 202012345 --json
 ```
 
 Debe poder ejecutarse en producción durante el evento, sin depender de la
-interfaz web. Es la herramienta con la que se responde un reclamo urgente el día
-del corte.
+interfaz web. Es la herramienta con la que se diagnostica y corrige
+cualquier inconsistencia detectada, cualquier día de la operación del
+evento.
 
 Con `--all` recorre el padrón completo y devuelve solo las inconsistencias
 (RF-332). Con `--fix` recalcula la caché desde el libro mayor (RF-333), dejando

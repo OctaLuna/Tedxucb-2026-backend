@@ -49,7 +49,7 @@ speakers mientras el resto se construye.
 |---|---|
 | Constitution | ✅ `memory/constitution.md` |
 | Specify | ✅ 4 specs redactados |
-| Clarify | 🟡 Ronda 1 completada — **20 marcadores abiertos** (001: 0 ✅ · 002: 0 ✅ · 003: 10 · 004: 10) |
+| Clarify | 🟡 Ronda 1 completada — **10 marcadores abiertos** (001: 0 ✅ · 002: 0 ✅ · 003: 0 ✅ · 004: 10) |
 | Plan | 🟡 `001`, `002` y `003` |
 | Tasks | 🟡 `001`, `002` y `003` |
 | Analyze | ✅ `docs/analisis-sdd.md` |
@@ -76,6 +76,12 @@ speakers mientras el resto se construye.
 | 2026-09-01 | RF-219 | Cumplimiento de marca TEDx descartado del backend — responsabilidad 100% de frontend/diseño (ver ADR-006) |
 | 2026-09-01 | RF-220 | Sede y datos generales cubiertos por la entidad Evento; agenda/programa, si se publica, es contenido estático del frontend |
 | 2026-09-01 | CE-201 | Meta de postulaciones y fecha de cierre quedan como deuda técnica explícita — primera edición, sin dato histórico para fijarla |
+| 2026-09-02 | RF-342 | Ranking completo visible para todos los alumnos autenticados, no solo la posición propia |
+| 2026-09-02 | RF-322 | Sin umbral fijo de anomalía por dispositivo; detección automática (T090) queda como deuda técnica explícita, no bloqueante |
+| 2026-09-02 | RF-323 | No existen actividades masivas confirmadas; no se construye un modo de registro alternativo |
+| 2026-09-02 | Caso límite "cupo lleno" | Las actividades no tienen límite de asistentes; se elimina el campo `capacity` del modelo y `422 ACTIVITY_FULL` del contrato de check-in |
+| 2026-09-02 | Vigencia del token QR | 60 segundos, confirmado |
+| 2026-09-02 | RF-334 a RF-337 (Historia 5) | Se elimina el canal formal de reclamos y el concepto de fecha de corte del ranking; el ranking es una vista continua sin evento de cierre (ver ADR-008) |
 
 La decisión de auto-registro **abrió más preguntas de las que cerró**: al dejar
 de controlar la organización quién entra al sistema, aparecieron seis requisitos
@@ -90,6 +96,15 @@ La ronda de clarificación del 2026-09-01 resolvió los 5 marcadores reales de
 `002` (spec ✅ plan ✅ tasks ✅) — el conteo previo de esta tabla decía 6, pero
 el propio checklist de `spec.md` ya marcaba "5 abiertos"; mismo tipo de
 desfase ya visto y corregido en `001`.
+
+La ronda de clarificación del 2026-09-02 resolvió los 9 marcadores reales de
+`003` (spec ✅ plan ✅ tasks ✅) — el conteo previo de esta tabla decía 10 y el
+checklist de `spec.md` decía 6; ninguno de los dos era correcto (mismo tipo de
+desfase ya visto en `001` y `002`). Una sola tarea del Grupo 0 podía cerrar
+varios marcadores a la vez porque la misma pregunta aparecía repetida en
+`spec.md` y en `contracts/`. La decisión sobre reclamos fue la de mayor peso:
+elimina una entidad completa (`PointClaim`) y el concepto de fecha de corte
+del ranking — ver [ADR-008](../docs/decisiones/README.md).
 
 ## Reglas del repositorio
 

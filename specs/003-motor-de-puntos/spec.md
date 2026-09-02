@@ -1,7 +1,8 @@
 # Especificación: Motor de puntos y participación
 
 **Rama/ID:** `003-motor-de-puntos`
-**Estado:** Borrador — pendiente de clarificación
+**Estado:** Clarificado — plan y tasks completos (`plan.md`, `data-model.md`,
+`contracts/`, `tasks.md`)
 **Entrada:** "en la universidad tendremos una charla ted, y a esa charla solamente pueden entrar 100 personas, unos 80 alumnos, ahora para escoger a los alumnos se tomará en cuenta por puntos, y cada punto se gana cuando ellos participan de alguna cosa y ahí se les daría puntos, y todo eso lo haremos mediante una página web, donde mediante tracking o alguna otra cosa un QR o algo cuando un estudiante participa el dueño de ese lugar le asigna los puntos respectivos y eso se le carga a su perfil automáticamente y los alumnos pueden ver su progreso para ver cuántos puntos tienen"
 
 ## Contexto
@@ -25,7 +26,11 @@ contratos escritos.
 
 **Sí cubre:** catálogo de actividades, asignación de staff, registro validado de
 participación, otorgamiento automático de puntos, historial del alumno,
-correcciones y reversiones, reclamos, ranking y prevención de fraude.
+correcciones y reversiones, ranking y prevención de fraude.
+
+**Sin canal formal de reclamos** (decisión 2026-09-02, ver ADR-008): un
+alumno que crea que le falta un punto lo reporta por un canal informal; el
+administrador corrige con un movimiento manual auditado.
 
 **No cubre:** asignación de cupos del evento (`004`), gestión de usuarios
 (`001`).
@@ -144,32 +149,16 @@ transacciones.
 5. **Dado** cualquier corrección, **Cuando** se ejecuta, **Entonces** queda
    registrada en auditoría con su autor.
 
-### Historia 5 — El alumno reclama un punto faltante (Prioridad: P2)
+### Historia 5 — El alumno reclama un punto faltante
 
-Como **alumno**, quiero reportar que participé en una actividad y no se me
-acreditó, para que la organización lo revise.
-
-**Por qué esta prioridad:** con 80 cupos en juego, esto **va a pasar**. Sin un
-canal formal, el reclamo llegará igual —por WhatsApp, por pasillo, por
-insistencia— y se resolverá de forma opaca y desigual. Ese es exactamente el
-escenario que destruye la legitimidad del sistema.
-
-**Prueba independiente:** un alumno abre un reclamo sobre una actividad y el
-administrador lo resuelve.
-
-**Escenarios de aceptación:**
-
-1. **Dado** un alumno que no ve una participación esperada, **Cuando** abre un
-   reclamo indicando la actividad y su explicación, **Entonces** el reclamo
-   queda registrado y visible para el administrador.
-2. **Dado** un reclamo procedente, **Cuando** el administrador lo aprueba,
-   **Entonces** se registra la participación, se otorgan los puntos y el
-   historial lo identifica como resultado de un reclamo.
-3. **Dado** un reclamo improcedente, **Cuando** el administrador lo rechaza con
-   motivo, **Entonces** el alumno puede ver la respuesta.
-4. **Dado** el cierre de la fecha de corte, **Cuando** un alumno intenta abrir
-   un reclamo, **Entonces** el sistema lo rechaza si el plazo ya venció.
-   `[NECESITA CLARIFICACIÓN: ¿cuántos días antes del corte se cierran los reclamos? Debe haber margen para resolverlos.]`
+**← Eliminada 2026-09-02.** El responsable del proyecto confirmó
+explícitamente que no hace falta un canal formal de reclamos ("no necesitamos
+una sección de reclamos, no es necesario"). Ver ADR-008. Un alumno que crea
+que le falta un punto lo reporta por un canal informal (correo, WhatsApp,
+presencial); el administrador lo resuelve con un `ADJUSTMENT`/`BONUS` manual
+con motivo obligatorio (RF-330), auditado y visible en el historial del
+alumno como cualquier otro movimiento — el ledger de solo inserción
+(Artículo IV) ya provee la trazabilidad que un canal formal habría dado.
 
 ### Historia 6 — Nadie infla su puntaje (Prioridad: P1)
 
@@ -208,7 +197,11 @@ sistema los rechaza.
   sistema pregunta al administrador si revierte en bloque los puntos ya
   otorgados. No decide solo: puede ser justo conservarlos si los alumnos ya
   habían asistido.
-- **Actividad con cupo lleno.** `[NECESITA CLARIFICACIÓN: si la actividad tiene cupo máximo y llega un alumno adicional, ¿se le niega el registro o se le permite entrar sin puntos?]`
+- **Actividad con cupo lleno.** No aplica: las actividades no tienen límite de
+  asistentes. Lo único que varía por actividad es cuántos puntos otorga, no
+  cuánta gente admite. **Resuelto 2026-09-02** (confirmado explícitamente por
+  el responsable del proyecto: el campo `capacity` no se usa nunca para
+  rechazar un check-in).
 - **Dos miembros del staff escanean al mismo alumno simultáneamente.** Solo uno
   de los registros prospera; el otro recibe el rechazo por duplicado.
 - **Empate exacto de puntaje entre dos alumnos.** Se resuelve por antigüedad: gana
@@ -256,6 +249,12 @@ sistema los rechaza.
   consultable por los alumnos antes de participar. Las reglas del juego se
   comunican antes, no después.
 
+> **Nota (2026-09-02):** ningún RF de esta sección exige un límite de
+> asistentes por actividad. El campo `capacity` que `data-model.md` había
+> anticipado en el diseño se elimina: no tiene RF que lo respalde y no se usa
+> para rechazar check-ins (confirmado con el responsable del proyecto, ver
+> el caso límite "Actividad con cupo lleno" más abajo).
+
 ### Registro de participación
 
 - **RF-311:** El alumno DEBE poder generar desde su perfil un código
@@ -283,10 +282,17 @@ sistema los rechaza.
   de cada registro para detectar anomalías.
 - **RF-322:** El sistema DEBE señalar como anomalía cuando un mismo dispositivo
   registra a un número inusual de alumnos distintos en un intervalo corto.
-  `[NECESITA CLARIFICACIÓN: ¿qué umbral se considera inusual? Depende del tamaño típico de las actividades.]`
+  **Resuelto 2026-09-02:** sin umbral fijo por ahora. Se registra
+  `device_hash`/`ip_address` en cada asistencia (RF-321) para revisión manual
+  del administrador; la alerta automática (T090) queda como deuda técnica
+  explícita y no bloqueante — se retoma cuando haya datos reales de uso en
+  campo para fijar un umbral con criterio, no arbitrario (Artículo VII).
 - **RF-323:** El sistema DEBE ofrecer una alternativa de registro para
   actividades masivas donde el escaneo individual sea impracticable.
-  `[NECESITA CLARIFICACIÓN: ¿existen actividades con asistencia masiva donde escanear uno por uno no sea viable? Si es así, cuántos asistentes.]`
+  **Resuelto 2026-09-02:** no existen actividades masivas confirmadas. No se
+  construye una alternativa de registro (Artículo VII: no construir lo que no
+  está confirmado). Si aparece una después, se reabre con su propio ciclo de
+  spec.
 
 ### Puntos e historial
 
@@ -311,14 +317,7 @@ sistema los rechaza.
 
 ### Reclamos
 
-- **RF-334:** El alumno DEBE poder abrir un reclamo por una participación no
-  acreditada, indicando la actividad y su explicación.
-- **RF-335:** El administrador DEBE poder aprobar o rechazar reclamos con
-  motivo, y el alumno DEBE poder ver la resolución.
-- **RF-336:** Un reclamo aprobado DEBE generar el registro de participación y
-  los puntos correspondientes, identificados como originados en un reclamo.
-- **RF-337:** Los reclamos DEBEN cerrarse antes de la fecha de corte del
-  ranking.
+**← Sección eliminada 2026-09-02.** Ver Historia 5 y ADR-008.
 
 ### Ranking
 
@@ -330,7 +329,8 @@ sistema los rechaza.
 - **RF-341:** El administrador DEBE poder consultar el ranking filtrado por
   carrera y facultad, y exportarlo.
 - **RF-342:** El alumno DEBE poder conocer su propia posición.
-  `[NECESITA CLARIFICACIÓN: ¿el ranking completo es visible para todos los alumnos, o cada uno ve solo su posición? Un ranking público motiva, pero también expone y puede generar fricción entre compañeros.]`
+  **Resuelto 2026-09-02:** el ranking completo es visible para todos los
+  alumnos autenticados, no solo la posición propia.
 
 ## Entidades clave
 
@@ -342,8 +342,6 @@ sistema los rechaza.
 - **Movimiento de puntos:** unidad indivisible del historial. Positivo o
   negativo, con tipo, motivo, autor y referencia a lo que lo originó. Es la
   fuente de verdad del puntaje.
-- **Reclamo:** solicitud de un alumno para revisar una participación no
-  acreditada.
 - **Código de identificación del alumno:** credencial temporal que permite al
   staff identificarlo en el momento del registro.
 
@@ -357,8 +355,6 @@ sistema los rechaza.
   100% de los alumnos, verificado a diario.
 - **CE-304:** Menos del 5% de los registros se realiza por vía manual. Un valor
   alto indicaría que el mecanismo principal no funciona en campo.
-- **CE-305:** Menos del 3% de los alumnos activos abre un reclamo, y el 100% de
-  los reclamos se resuelve antes de la fecha de corte.
 - **CE-306:** Al menos el 60% de los alumnos activos consulta su progreso al
   menos una vez por semana durante la campaña.
 - **CE-307:** Cero incidentes confirmados de puntos obtenidos sin participación
@@ -366,7 +362,7 @@ sistema los rechaza.
 
 ## Checklist de completitud
 
-- [ ] No quedan marcadores `[NECESITA CLARIFICACIÓN]` — **6 abiertos** (RF-310 resuelto)
+- [x] No quedan marcadores `[NECESITA CLARIFICACIÓN]` — **0 abiertos** (9 reales resueltos 2026-09-02, ver `specs/README.md`)
 - [x] Los requisitos son verificables y sin ambigüedad
 - [x] Los criterios de éxito son medibles
 - [x] No hay detalles de implementación

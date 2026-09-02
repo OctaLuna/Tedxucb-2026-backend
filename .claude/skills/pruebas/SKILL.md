@@ -123,7 +123,7 @@ buscando qué se rompió.
 Las pruebas automatizadas no cubren todo. `quickstart.md` tiene 14 escenarios
 para ejecutar a mano antes de dar la feature por terminada.
 
-**El escenario 14 es obligatorio antes de la primera actividad real:** 20 alumnos
+**El escenario 13 es obligatorio antes de la primera actividad real:** 20 alumnos
 en fila, dos dispositivos, red del campus, teléfonos de gama media. Un sistema
 correcto que hace esperar veinte minutos a una fila termina reemplazado por
 registros manuales, y con ellos se pierde toda la trazabilidad. Eso no lo detecta

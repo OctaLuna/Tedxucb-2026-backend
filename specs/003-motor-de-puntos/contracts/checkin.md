@@ -73,9 +73,15 @@ vistazo si el problema es el token, la hora o un duplicado.
 | `400` | `INVALID_QR_TOKEN` | Firma inválida o token malformado. | RF-313 |
 | `401` | `EXPIRED_QR_TOKEN` | Token vencido. Incluye `expiredAt`. | RF-312 |
 | `403` | `STAFF_NOT_ASSIGNED` | El validador no está asignado a la actividad. | RF-305 |
+| `403` | `STUDENT_NOT_VERIFIED` | La cuenta del alumno escaneado no está activa/verificada todavía. | RF-122 (`001`) |
 | `409` | `CHECKIN_WINDOW_CLOSED` | Fuera de la ventana, o actividad no publicada. Incluye `opensAt` y `closesAt`. | RF-316 |
 | `409` | `ALREADY_CHECKED_IN` | El alumno ya tiene asistencia viva. Incluye `checkedInAt` y `pointsAwarded` del registro previo. | RF-315 |
-| `422` | `ACTIVITY_FULL` | Cupo agotado. `[NECESITA CLARIFICACIÓN: RF sin resolver — ver caso límite "Actividad con cupo lleno" en spec.md]` | — |
+
+`ACTIVITY_FULL` se elimina del contrato **(resuelto 2026-09-02)**: las
+actividades no tienen límite de asistentes (confirmado con el responsable
+del proyecto — el campo `capacity` no existe en el modelo). `STUDENT_NOT_VERIFIED`
+se añade: es el caso que ya anticipaba `tasks.md` (T068, derivado de RF-122
+de `001`) y que no estaba en la tabla original.
 
 Ejemplo de duplicado, que es el fallo más frecuente en campo:
 
@@ -120,13 +126,24 @@ puntos, o no existe ninguno de los dos. Nunca uno solo.
 | Escenario | Resultado esperado |
 |---|---|
 | Primera petición | `201`, puntos otorgados una vez |
-| Reintento tras caída de red, mismo alumno y actividad | `200` con el mismo `attendanceId`, **sin** segundo abono |
-| Dos peticiones concurrentes para el mismo alumno | Una `201`, otra `409`. Nunca dos `201` |
+| Reintento (secuencial o concurrente) para el mismo alumno y actividad | `409 ALREADY_CHECKED_IN` con los datos del registro previo (`checkedInAt`, `pointsAwarded`, `validatedBy`). **Nunca** un segundo abono de puntos. |
 | Alumno distinto, misma actividad | `201` normal |
 
-El tercer caso solo puede probarse con base de datos real y peticiones
-verdaderamente simultáneas. Es la razón por la que el Artículo IX prohíbe
-mockear aquí.
+**Nota sobre el reintento (aclarado 2026-09-02, no depende de las decisiones
+del Grupo 0):** el índice único parcial de `attendances` no puede distinguir
+"esta es mi propia petición reenviada tras perder la red" de "otro miembro
+del staff escaneó al mismo alumno un segundo después" — ambas violan el mismo
+índice de la misma forma, y el orden ya fijado de este contrato (asistencia
+antes que movimiento de puntos) hace que ese conflicto dispare siempre
+primero. La garantía real que exige RF-317 (nunca un segundo abono) se
+cumple igual con `409`: la respuesta ya trae `checkedInAt`+`validatedBy` del
+registro previo (RF-318, Artículo VI) precisamente para que el staff que
+reconozca su propio nombre y una hora reciente lo trate como éxito en la
+interfaz. Es una decisión de UX del cliente de escaneo, no del backend.
+
+La prueba de concurrencia (dos peticiones verdaderamente simultáneas, una
+`201` y otra `409`, nunca dos `201`) solo puede probarse con base de datos
+real. Es la razón por la que el Artículo IX prohíbe mockear aquí.
 
 ---
 
@@ -175,7 +192,8 @@ El cliente renueva antes de `expiresAt` para que el código nunca aparezca
 vencido en pantalla. La vigencia es corta y deliberada: una captura de pantalla
 compartida caduca antes de poder circular.
 
-`[NECESITA CLARIFICACIÓN: ¿vigencia de 60 segundos es adecuada para la conectividad real del campus? Una ventana demasiado corta genera rechazos legítimos cuando la red va lenta; demasiado larga abre la puerta a compartir capturas.]`
+**Resuelto 2026-09-02:** 60 segundos, confirmado (era la sugerencia de
+partida del contrato).
 
 ### Prueba de contrato obligatoria
 

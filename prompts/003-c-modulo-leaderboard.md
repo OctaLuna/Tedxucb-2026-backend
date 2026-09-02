@@ -6,11 +6,10 @@ Tercer y último módulo de negocio de `003-motor-de-puntos` (de los 3 que
 permite el Artículo VII para esta feature). Requiere `003-b-modulo-points.md`
 ejecutado — lee la caché `total_points` que ese módulo mantiene, nunca
 recalcula sumando el ledger en cada consulta (eso sería lento con cientos de
-alumnos, por eso existe la caché). También requiere que T001 (RF-342,
-visibilidad del ranking para alumnos) se haya resuelto en `003-a` — si no se
-resolvió, detente y resuélvela antes de seguir: define directamente el
-alcance de este módulo (¿el endpoint de ranking es solo para admin/staff, o
-también accesible por el propio alumno?).
+alumnos, por eso existe la caché). T001 (RF-342, visibilidad del ranking) ya se resolvió el 2026-09-02: el
+ranking completo es visible para todos los alumnos autenticados, no solo su
+posición propia — el endpoint no lleva restricción adicional de alcance por
+esa razón, todo autenticado lo consulta completo.
 
 ## Skill a cargar
 
@@ -28,12 +27,13 @@ Confirma que falla antes de implementar.
 ## Paso 2 — Implementación (Grupo 6, parte de `leaderboard`)
 
 T073 (consulta de ranking con desempate determinista y filtros por
-carrera/facultad — según lo que haya resuelto T001, expón el endpoint según
-el alcance de visibilidad decidido), T074 (endpoint de progreso individual
-del alumno — `totalPoints`, `rank`, `totalStudents`; revisa si
-`contracts/points-and-claims.md` sigue teniendo abierto el marcador sobre
-`pointsToCutoff` y resuélvelo si aplica), T075 (exportación del ranking en
-formato tabular abierto, rol admin).
+carrera/facultad, accesible a cualquier alumno autenticado además de
+`ADMIN`/`STAFF` — RF-342 resuelto), T074 (endpoint de progreso individual del
+alumno — el contrato ya quedó fijado en `{totalPoints, rank, totalStudents}`,
+sin `pointsToCutoff`: se eliminó 2026-09-02 junto con el concepto de fecha de
+corte, ver ADR-008 y `contracts/points-and-leaderboard.md`, antes
+`points-and-claims.md`), T075 (exportación del ranking en formato tabular
+abierto, rol admin).
 
 ## Paso 3 — Métricas (parte del Grupo 8)
 
