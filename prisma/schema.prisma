@@ -24,29 +24,34 @@ model User {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  createdBy      User?          @relation("UserCreatedBy", fields: [createdById], references: [id])
-  createdUsers   User[]         @relation("UserCreatedBy")
-  roles          UserRole[]     @relation("UserRoles")
-  grantedRoles   UserRole[]     @relation("RoleGrantedBy")
-  authTokens     AuthToken[]    @relation("AuthTokenUser")
-  createdTokens  AuthToken[]    @relation("AuthTokenCreatedBy")
-  refreshTokens  RefreshToken[]
-  auditLogs      AuditLog[]
-  studentProfile StudentProfile?
-  resolvedCorrectionRequests CorrectionRequest[] @relation("CorrectionRequestResolvedBy")
+  createdBy                  User?                @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers               User[]               @relation("UserCreatedBy")
+  roles                      UserRole[]           @relation("UserRoles")
+  grantedRoles               UserRole[]           @relation("RoleGrantedBy")
+  authTokens                 AuthToken[]          @relation("AuthTokenUser")
+  createdTokens              AuthToken[]          @relation("AuthTokenCreatedBy")
+  refreshTokens              RefreshToken[]
+  auditLogs                  AuditLog[]
+  studentProfile             StudentProfile?
+  resolvedCorrectionRequests CorrectionRequest[]  @relation("CorrectionRequestResolvedBy")
   updatedEvents              Event[]
   updatedContentBlocks       ContentBlock[]
   createdSpeakers            Speaker[]
   reviewedApplications       SpeakerApplication[]
+  createdActivities          Activity[]           @relation("ActivityCreatedBy")
+  activityStaffAssignments   ActivityStaff[]      @relation("ActivityStaffUser")
+  assignedActivityStaff      ActivityStaff[]      @relation("ActivityStaffAssignedBy")
+  validatedAttendances       Attendance[]         @relation("AttendanceValidatedBy")
+  createdPointTransactions   PointTransaction[]   @relation("PointTransactionCreatedBy")
 
   @@map("users")
 }
 
 model UserRole {
-  userId     String   @map("user_id") @db.Uuid
-  role       String
-  grantedById String? @map("granted_by") @db.Uuid
-  grantedAt  DateTime @default(now()) @map("granted_at") @db.Timestamptz
+  userId      String   @map("user_id") @db.Uuid
+  role        String
+  grantedById String?  @map("granted_by") @db.Uuid
+  grantedAt   DateTime @default(now()) @map("granted_at") @db.Timestamptz
 
   user      User  @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
   grantedBy User? @relation("RoleGrantedBy", fields: [grantedById], references: [id])
@@ -73,14 +78,14 @@ model AuthToken {
 }
 
 model RefreshToken {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String    @map("user_id") @db.Uuid
-  tokenHash   String    @unique @map("token_hash")
-  familyId    String    @map("family_id") @db.Uuid
-  replacedById String?  @unique @map("replaced_by") @db.Uuid
-  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz
-  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  familyId     String    @map("family_id") @db.Uuid
+  replacedById String?   @unique @map("replaced_by") @db.Uuid
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   replacedBy RefreshToken? @relation("RefreshTokenChain", fields: [replacedById], references: [id])
@@ -127,28 +132,34 @@ model Career {
 }
 
 // 1:1 real con User: la propia FK es la PK (mismo patrón que ya usa 003 al
-// referenciar student_profiles(user_id)). total_points NO se declara aquí:
-// lo agrega 003-motor-de-puntos por ALTER TABLE.
+// referenciar student_profiles(user_id)).
 model StudentProfile {
-  userId              String    @id @map("user_id") @db.Uuid
-  studentCode         String    @unique @map("student_code")
-  careerId            String    @map("career_id") @db.Uuid
-  academicPeriod      String    @map("academic_period")
-  phone               String
-  avatarUrl           String?   @map("avatar_url")
-  idDocumentUrl       String?   @map("id_document_url")
-  bio                 String?
-  interests           String[]
-  accessibilityNeeds  String?   @map("accessibility_needs")
-  professionalLink    String?   @map("professional_link")
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+  userId             String   @id @map("user_id") @db.Uuid
+  studentCode        String   @unique @map("student_code")
+  careerId           String   @map("career_id") @db.Uuid
+  academicPeriod     String   @map("academic_period")
+  phone              String
+  avatarUrl          String?  @map("avatar_url")
+  idDocumentUrl      String?  @map("id_document_url")
+  bio                String?
+  interests          String[]
+  accessibilityNeeds String?  @map("accessibility_needs")
+  professionalLink   String?  @map("professional_link")
+  // Caché derivada del libro mayor (Artículo IV) -- nunca fuente de verdad,
+  // nunca escrita fuera de LedgerService. Reconstruible sumando
+  // point_transactions en cualquier momento (ver points-cli reconcile).
+  totalPoints        Int      @default(0) @map("total_points")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  user                User                @relation(fields: [userId], references: [id])
-  career              Career              @relation(fields: [careerId], references: [id])
-  consentAcceptances  ConsentAcceptance[]
-  correctionRequests  CorrectionRequest[]
+  user               User                @relation(fields: [userId], references: [id])
+  career             Career              @relation(fields: [careerId], references: [id])
+  consentAcceptances ConsentAcceptance[]
+  correctionRequests CorrectionRequest[]
+  attendances        Attendance[]
+  pointTransactions  PointTransaction[]
 
+  @@index([totalPoints(sort: Desc)])
   @@map("student_profiles")
 }
 
@@ -157,12 +168,12 @@ model StudentProfile {
 // código. Solo una versión activa a la vez (índice único parcial en la
 // migración).
 model ConsentVersion {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  version   String   @unique
-  body      String
-  isActive  Boolean  @default(true) @map("is_active")
-  createdById String? @map("created_by") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  version     String   @unique
+  body        String
+  isActive    Boolean  @default(true) @map("is_active")
+  createdById String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   acceptances ConsentAcceptance[]
 
@@ -170,10 +181,10 @@ model ConsentVersion {
 }
 
 model ConsentAcceptance {
-  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  studentId         String   @map("student_id") @db.Uuid
-  consentVersionId  String   @map("consent_version_id") @db.Uuid
-  acceptedAt        DateTime @default(now()) @map("accepted_at") @db.Timestamptz
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId        String   @map("student_id") @db.Uuid
+  consentVersionId String   @map("consent_version_id") @db.Uuid
+  acceptedAt       DateTime @default(now()) @map("accepted_at") @db.Timestamptz
 
   student        StudentProfile @relation(fields: [studentId], references: [userId])
   consentVersion ConsentVersion @relation(fields: [consentVersionId], references: [id])
@@ -245,18 +256,18 @@ model ContentBlock {
 // Ficha pública del expositor (RF-206 a RF-209, RF-217). Sin DELETE -- se
 // despublica (status: DRAFT), nunca se borra (data-model.md §3 de 002).
 model Speaker {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  fullName      String   @map("full_name")
-  headline      String?
-  bio           String?
-  talkTitle     String?  @map("talk_title")
-  photoUrl      String?  @map("photo_url")
-  photoAltText  String?  @map("photo_alt_text")
-  displayOrder  Int      @default(0) @map("display_order")
-  status        String   @default("DRAFT")
-  createdById   String?  @map("created_by") @db.Uuid
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName     String   @map("full_name")
+  headline     String?
+  bio          String?
+  talkTitle    String?  @map("talk_title")
+  photoUrl     String?  @map("photo_url")
+  photoAltText String?  @map("photo_alt_text")
+  displayOrder Int      @default(0) @map("display_order")
+  status       String   @default("DRAFT")
+  createdById  String?  @map("created_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
   createdBy   User?               @relation(fields: [createdById], references: [id])
   application SpeakerApplication?
@@ -289,4 +300,121 @@ model SpeakerApplication {
   convertedSpeaker Speaker? @relation(fields: [convertedSpeakerId], references: [id])
 
   @@map("speaker_applications")
+}
+
+// ---------------------------------------------------------------------
+// 003-motor-de-puntos -- módulo `activities`. Sin PointClaim: el canal de
+// reclamos se eliminó (ADR-008). Sin `capacity` en Activity: las
+// actividades no limitan asistentes (confirmado 2026-09-02, ver
+// data-model.md de 003).
+// ---------------------------------------------------------------------
+
+model ActivityCategory {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String  @unique
+  color           String?
+  suggestedPoints Int?    @map("suggested_points")
+
+  activities Activity[]
+
+  @@map("activity_categories")
+}
+
+// Sin campo de cupo: las actividades no limitan asistentes. Lo único que
+// varía por actividad es cuánto otorga, nunca cuánta gente admite.
+model Activity {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId            String?  @map("category_id") @db.Uuid
+  title                 String
+  description           String?
+  location              String?
+  pointsValue           Int      @map("points_value")
+  startsAt              DateTime @map("starts_at") @db.Timestamptz
+  endsAt                DateTime @map("ends_at") @db.Timestamptz
+  checkinOpensAt        DateTime @map("checkin_opens_at") @db.Timestamptz
+  checkinClosesAt       DateTime @map("checkin_closes_at") @db.Timestamptz
+  allowMultipleCheckins Boolean  @default(false) @map("allow_multiple_checkins")
+  status                String   @default("DRAFT")
+  createdById           String   @map("created_by") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  category          ActivityCategory?  @relation(fields: [categoryId], references: [id])
+  createdBy         User               @relation("ActivityCreatedBy", fields: [createdById], references: [id])
+  staff             ActivityStaff[]
+  attendances       Attendance[]
+  pointTransactions PointTransaction[]
+
+  @@index([status, startsAt(sort: Desc)])
+  @@map("activities")
+}
+
+// Lo que consulta ActivityStaffGuard en cada check-in -- RF-305, Artículo V
+// (no hay staff con acceso global, solo asignación explícita).
+model ActivityStaff {
+  activityId   String   @map("activity_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  assignedById String?  @map("assigned_by") @db.Uuid
+  assignedAt   DateTime @default(now()) @map("assigned_at") @db.Timestamptz
+
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user       User     @relation("ActivityStaffUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy User?    @relation("ActivityStaffAssignedBy", fields: [assignedById], references: [id])
+
+  @@id([activityId, userId])
+  @@map("activity_staff")
+}
+
+model Attendance {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  activityId      String   @map("activity_id") @db.Uuid
+  studentId       String   @map("student_id") @db.Uuid
+  method          String
+  status          String   @default("APPROVED")
+  // Copia de activities.allow_multiple_checkins al momento de insertar, no
+  // una referencia en vivo -- un índice único parcial no puede consultar
+  // otra tabla en su predicado (ver data-model.md §3 de 003).
+  multipleAllowed Boolean  @default(false) @map("multiple_allowed")
+  validatedById   String?  @map("validated_by") @db.Uuid
+  note            String?
+  deviceHash      String?  @map("device_hash")
+  ipAddress       String?  @map("ip_address") @db.Inet
+  checkedInAt     DateTime @default(now()) @map("checked_in_at") @db.Timestamptz
+
+  activity         Activity          @relation(fields: [activityId], references: [id])
+  student          StudentProfile    @relation(fields: [studentId], references: [userId])
+  validatedBy      User?             @relation("AttendanceValidatedBy", fields: [validatedById], references: [id])
+  pointTransaction PointTransaction?
+
+  @@index([studentId, checkedInAt(sort: Desc)])
+  @@index([deviceHash, checkedInAt(sort: Desc)])
+  @@map("attendances")
+}
+
+// Libro mayor -- Artículo IV. Tabla de solo inserción: el trigger
+// forbid_ledger_mutation (migración) rechaza UPDATE/DELETE. Nunca se
+// escribe fuera de LedgerService (src/common/ledger/).
+model PointTransaction {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId      String   @map("student_id") @db.Uuid
+  points         Int
+  type           String
+  activityId     String?  @map("activity_id") @db.Uuid
+  attendanceId   String?  @unique @map("attendance_id") @db.Uuid
+  reversesId     String?  @unique @map("reverses_id") @db.Uuid
+  reason         String?
+  createdById    String?  @map("created_by") @db.Uuid
+  idempotencyKey String?  @unique @map("idempotency_key")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  student    StudentProfile    @relation(fields: [studentId], references: [userId])
+  activity   Activity?         @relation(fields: [activityId], references: [id])
+  attendance Attendance?       @relation(fields: [attendanceId], references: [id])
+  reverses   PointTransaction? @relation("Reversal", fields: [reversesId], references: [id])
+  reversedBy PointTransaction? @relation("Reversal")
+  createdBy  User?             @relation("PointTransactionCreatedBy", fields: [createdById], references: [id])
+
+  @@index([studentId, createdAt(sort: Desc)])
+  @@index([activityId])
+  @@map("point_transactions")
 }

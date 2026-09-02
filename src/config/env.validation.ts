@@ -19,6 +19,10 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   MAIL_FROM: z.string().default('TEDxUCB <no-reply@tedxucb.local>'),
+  // Secreto propio del token QR de check-in (RF-311/312), distinto de
+  // JWT_SECRET -- defensa en profundidad: si uno se filtra, el otro sigue
+  // protegido.
+  QR_TOKEN_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
