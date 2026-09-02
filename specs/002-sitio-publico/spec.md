@@ -1,7 +1,8 @@
 # Especificación: Sitio público TEDxUCB
 
 **Rama/ID:** `002-sitio-publico`
-**Estado:** Borrador — pendiente de clarificación
+**Estado:** Clarificado — plan y tasks completos (`plan.md`, `data-model.md`,
+`contracts/`, `tasks.md`)
 **Entrada:** "Necesitamos: una sección en la que se explique la temática. Una sección para Speakers, en la cual compartiremos su fotografía y una breve reseña (aún no tenemos speakers confirmados). Una sección tipo 'save the date', para mostrar una cuenta atrás al evento. Hay sitios como tedxsitges.com o tedxsurco.com que tienen contenido similar a que queremos, para poder guiarnos."
 
 ## Contexto
@@ -187,7 +188,8 @@ aparece en el panel del administrador.
   limitar la frecuencia de envío.
 - **RF-213:** Cada postulación DEBE generar una confirmación por correo al
   postulante.
-  `[NECESITA CLARIFICACIÓN: ¿el correo de confirmación anuncia plazos o próximos pasos? Si sí, ¿cuáles?]`
+  **Resuelto 2026-09-01:** acuse de recibo simple — confirma que la
+  postulación se recibió, sin fechas ni plazos de convocatoria comprometidos.
 - **RF-214:** El administrador DEBE poder listar, filtrar, abrir y cambiar el
   estado de las postulaciones, y dejar notas internas.
 - **RF-215:** El administrador DEBE poder convertir una postulación aceptada en
@@ -195,14 +197,23 @@ aparece en el panel del administrador.
 - **RF-216:** El sitio DEBE ser utilizable en pantallas de teléfono móvil.
 - **RF-217:** El sitio DEBE cumplir pautas básicas de accesibilidad: contraste
   suficiente, textos alternativos en imágenes y navegación por teclado.
-  `[NECESITA CLARIFICACIÓN: ¿la universidad exige algún nivel formal de conformidad, por ejemplo WCAG 2.1 AA?]`
+  **Resuelto 2026-09-01:** no hay exigencia formal de conformidad WCAG por
+  parte de la universidad. La única implicación con huella de backend es
+  exponer un texto alternativo por cada fotografía de speaker publicada; el
+  resto (contraste, navegación por teclado) es responsabilidad exclusiva del
+  frontend.
 - **RF-218:** El sitio DEBE exponer metadatos para compartir en redes sociales
   con vista previa correcta.
 - **RF-219:** El sitio DEBE respetar los lineamientos de marca de las licencias
   TEDx.
-  `[NECESITA CLARIFICACIÓN: ¿el equipo cuenta con el manual de marca TEDx y sus restricciones de uso del logotipo? Es un requisito de la licencia, no una preferencia estética.]`
+  **Resuelto 2026-09-01, descartado del backend:** es responsabilidad 100%
+  de frontend/diseño — este repositorio es exclusivamente el backend (ver
+  ADR-006). No genera entidad, campo ni endpoint.
 - **RF-220:** El sitio DEBE informar la sede y los datos generales del evento.
-  `[NECESITA CLARIFICACIÓN: ¿se publicará agenda o programa, y en qué momento?]`
+  **Resuelto 2026-09-01:** ya cubierto por la entidad Evento. La
+  agenda/programa del evento, si se publica, es contenido estático manejado
+  enteramente por el frontend — no se modela como entidad ni endpoint de
+  backend.
 
 ## Entidades clave
 
@@ -220,7 +231,11 @@ aparece en el panel del administrador.
 
 - **CE-201:** El sitio recibe al menos 30 postulaciones de speakers antes de la
   fecha de cierre de convocatoria.
-  `[NECESITA CLARIFICACIÓN: ¿cuál es la meta real de postulaciones y la fecha de cierre?]`
+  **Resuelto 2026-09-01, deuda técnica explícita:** es la primera edición de
+  TEDxUCB, sin datos históricos para fijar una meta realista. La cifra y la
+  fecha de cierre quedan como decisión de producto pendiente, documentada
+  como tal — no se inventa un número. No bloquea el desarrollo: RF-210/
+  RF-214 ya capturan y exponen el conteo de postulaciones.
 - **CE-202:** Al menos el 70% de las postulaciones recibidas plantea una idea
   conceptual con evidencia, y no una anécdota personal o un mensaje
   motivacional. Es la medida directa de si el formulario filtra bien.
@@ -233,7 +248,7 @@ aparece en el panel del administrador.
 
 ## Checklist de completitud
 
-- [ ] No quedan marcadores `[NECESITA CLARIFICACIÓN]` — **5 abiertos**
+- [x] No quedan marcadores `[NECESITA CLARIFICACIÓN]` — **0 abiertos**
 - [x] Los requisitos son verificables y sin ambigüedad
 - [x] Los criterios de éxito son medibles
 - [x] No hay detalles de implementación

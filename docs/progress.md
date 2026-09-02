@@ -14,7 +14,7 @@ explícitas de qué fila y qué entrada de bitácora le corresponde (ver
 | Feature | Spec | Plan | Tasks | Implementación |
 |---|---|---|---|---|
 | `001` — Identidad y usuarios | ✅ | ✅ | ✅ | ✅ |
-| `002` — Sitio público | ✅ | ⏳ pendiente | ⏳ pendiente | ⏳ pendiente |
+| `002` — Sitio público | ✅ | ✅ | ✅ | ⏳ pendiente |
 | `003` — Motor de puntos | ✅ | ✅ | ✅ | ⏳ pendiente |
 | `004` — Selección de cupos | ✅ | ⏳ pendiente | ⏳ pendiente | ⏳ pendiente |
 
@@ -29,7 +29,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 001-b | `001-b-implementacion-identidad.md` | Implementación — módulo `auth` | ✅ hecho | `6859adc`, `08cbd03` | Jest: 51/51 · Playwright: 2/2 |
 | 001-c | `001-c-implementacion-users.md` | Implementación — módulo `users` | ✅ hecho | `81372c7`, `a9f76c8` | Jest: 88/88 · Playwright: 4/4 |
 | 001-d | `001-d-implementacion-profiles.md` | Implementación — módulo `profiles` | ✅ hecho | `97643e8`, `3eeb7aa` | Jest: 115/115 · Playwright: 6/6 |
-| 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ⏳ pendiente | — | — |
+| 002-a | `002-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Sitio público | ✅ hecho | — (pendiente commit) | — (documental) |
 | 002-b | `002-b-implementacion-sitio-publico.md` | Implementación — Sitio público | ⏳ pendiente | — | — |
 | 003-a | `003-a-modulo-activities.md` | Módulo `activities` (actividades, staff, check-in, QR) | ⏳ pendiente | — | — |
 | 003-b | `003-b-modulo-points.md` | Módulo `points` (ledger, ajustes, reversiones, reclamos) | ⏳ pendiente | — | — |
@@ -43,6 +43,50 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-01 — `002-a-clarify-plan-tasks`
+
+Resueltos los 5 marcadores `[NECESITA CLARIFICACIÓN]` reales de `spec.md`
+(coincide con el propio checklist — la tabla de `specs/README.md` decía 6,
+desfase corregido, mismo patrón que el de `001-a`). Dos resoluciones vinieron
+directas del responsable del proyecto y cambiaron el alcance del diseño: **RF-219**
+(manual de marca TEDx) y **RF-220** (agenda del evento) quedaron descartadas
+del backend por completo — son responsabilidad 100% de frontend/diseño, sin
+entidad ni endpoint (aplicación directa de ADR-006, sin ADR nuevo). RF-213
+(acuse de recibo simple) y RF-217 (sin exigencia formal de accesibilidad) se
+resolvieron sin más implicación de backend que un texto alternativo por foto
+de speaker. **CE-201** se dejó como deuda técnica explícita, fechada: primera
+edición de TEDxUCB, sin dato histórico para fijar una meta real de
+postulaciones — no se inventó un número.
+
+Diseñado el ciclo técnico completo con un agente de diseño y revisado contra
+el repo real antes de escribirlo a disco (se corrigió un error del agente:
+había redactado una "resolución" de RF-218 en `spec.md` como si fuera un
+marcador abierto — nunca lo fue; su único contenido real, `events.image_url`,
+quedó en `plan.md`/`data-model.md`). Validadas 3 hipótesis de módulos contra
+el Artículo VII (1, 2 y 3) — aceptada **2**: `content` (Evento + bloques de
+contenido editable) y `speakers` (fichas + postulaciones, con
+`applications.service` como servicio interno, mismo precedente que
+`UsersService`+`RegistrationService` en `001/users`). `data-model.md` con 4
+entidades (`events` con índice único parcial `one_published_event`,
+`content_blocks` sin versionar, `speakers` con `CHECK
+published_speaker_is_complete`, `speaker_applications` con
+`converted_speaker_id UNIQUE` contra doble conversión concurrente); 4
+archivos de `contracts/` (`evento-y-cuenta-regresiva.md` completo — resuelve
+RF-204 devolviendo `startsAt`+`serverTime`+`eventStatus`, los tres calculados
+por el servidor, para que el cliente nunca dependa de su propio reloj;
+`postulaciones.md` completo en su parte pública, con señuelo anti-bot en vez
+de captcha; `speakers.md` y `contenido.md` como índice); `tasks.md` con 8
+grupos, `T001` a `T082` — incluye un `MailModule` nuevo (`src/common/mail/`,
+`nodemailer` + BullMQ) porque `001` nunca implementó el envío real de correo,
+solo la generación de tokens; ese mismo módulo desbloqueará después el envío
+pendiente de `001`.
+
+- Sin pruebas de módulo — prompt puramente documental (no hay código nuevo
+  todavía).
+- Commit: pendiente (este cierre de `progress.md` va en el mismo commit que
+  `spec.md`/`plan.md`/`data-model.md`/`contracts/`/`tasks.md`/
+  `specs/README.md`).
 
 ### 2026-09-01 — `001-d-implementacion-profiles` (módulo `profiles`) — `001` completo
 

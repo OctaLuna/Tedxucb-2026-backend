@@ -25,7 +25,7 @@ specs/
 | ID | Feature | Depende de | Estado |
 |---|---|---|---|
 | `001` | Identidad, usuarios y perfiles | — | spec ✅ · plan ✅ · tasks ✅ |
-| `002` | Sitio público TEDxUCB | 001 (parcial) | spec ✅ · plan ⏳ · tasks ⏳ |
+| `002` | Sitio público TEDxUCB | 001 (parcial) | spec ✅ · plan ✅ · tasks ✅ |
 | `003` | Motor de puntos y participación | 001 | spec ✅ · plan ✅ · tasks ✅ |
 | `004` | Selección y gestión de cupos | 003 | spec ✅ · plan ⏳ · tasks ⏳ |
 
@@ -49,9 +49,9 @@ speakers mientras el resto se construye.
 |---|---|
 | Constitution | ✅ `memory/constitution.md` |
 | Specify | ✅ 4 specs redactados |
-| Clarify | 🟡 Ronda 1 completada — **27 marcadores abiertos** (001: 0 ✅ · 002: 6 · 003: 10 · 004: 10) |
-| Plan | 🟡 `001` y `003` |
-| Tasks | 🟡 `001` y `003` |
+| Clarify | 🟡 Ronda 1 completada — **20 marcadores abiertos** (001: 0 ✅ · 002: 0 ✅ · 003: 10 · 004: 10) |
+| Plan | 🟡 `001`, `002` y `003` |
+| Tasks | 🟡 `001`, `002` y `003` |
 | Analyze | ✅ `docs/analisis-sdd.md` |
 | Implement | ⛔ Bloqueada |
 
@@ -71,6 +71,11 @@ speakers mientras el resto se construye.
 | 2026-08-31 | RF-110 | No habrá servicio de alimentos: se elimina el campo "restricciones alimentarias" |
 | 2026-08-31 | RF-128 | No existe texto de consentimiento aprobado: el sistema soporta un texto configurable y versionado por el administrador |
 | 2026-08-31 | RF-121 | Retención indefinida de datos personales — no hay eliminación/anonimización automática |
+| 2026-09-01 | RF-213 | Correo de confirmación de postulación: acuse de recibo simple, sin fechas ni plazos comprometidos |
+| 2026-09-01 | RF-217 | Sin exigencia formal de conformidad WCAG; única huella de backend es el texto alternativo de la foto de speaker |
+| 2026-09-01 | RF-219 | Cumplimiento de marca TEDx descartado del backend — responsabilidad 100% de frontend/diseño (ver ADR-006) |
+| 2026-09-01 | RF-220 | Sede y datos generales cubiertos por la entidad Evento; agenda/programa, si se publica, es contenido estático del frontend |
+| 2026-09-01 | CE-201 | Meta de postulaciones y fecha de cierre quedan como deuda técnica explícita — primera edición, sin dato histórico para fijarla |
 
 La decisión de auto-registro **abrió más preguntas de las que cerró**: al dejar
 de controlar la organización quién entra al sistema, aparecieron seis requisitos
@@ -80,6 +85,11 @@ inmediato. La ronda de clarificación del 2026-08-31 resolvió los 7 marcadores
 reales que quedaban abiertos en `001` (spec ✅ plan ✅ tasks ✅) — de paso
 confirmó que el "padrón institucional" no existe, lo que llevó a
 [ADR-007](../docs/decisiones/README.md).
+
+La ronda de clarificación del 2026-09-01 resolvió los 5 marcadores reales de
+`002` (spec ✅ plan ✅ tasks ✅) — el conteo previo de esta tabla decía 6, pero
+el propio checklist de `spec.md` ya marcaba "5 abiertos"; mismo tipo de
+desfase ya visto y corregido en `001`.
 
 ## Reglas del repositorio
 
