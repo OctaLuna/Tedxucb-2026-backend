@@ -34,7 +34,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 002-c | `002-c-implementacion-speakers.md` | Implementación — módulo `speakers` | ✅ hecho | `45cd9d7`, `fed2cc7` | Jest: 185/185 · Playwright: 11/11 |
 | 003-a | `003-a-modulo-activities.md` | Módulo `activities` (actividades, staff, check-in, QR) | ✅ hecho | `bce9029`, `a81e9df`, `f73a48a`, `185aad2` | Jest: 234/234 · Playwright: 14/14 |
 | 003-b | `003-b-modulo-points.md` | Módulo `points` (ajustes, reversiones, reconciliación, `points-cli`) | ✅ hecho | `7122cf8`, `db162be`, `65b9794`, `4840a80`, `2f0c202` | Jest: 262/262 · Playwright: 15/15 |
-| 003-c | `003-c-modulo-leaderboard.md` | Módulo `leaderboard` (ranking, progreso, export) | ⏳ pendiente | — | — |
+| 003-c | `003-c-modulo-leaderboard.md` | Módulo `leaderboard` (ranking, progreso, export) | ✅ hecho | `0c02104`, `c34ad83`, `6965558`, `606852c` | Jest: 276/276 · Playwright: 17/17 |
 | 003-d | `003-d-integracion-y-pulido.md` | Integración cruzada y pulido — Motor de puntos | ⏳ pendiente | — | — |
 | 004-a | `004-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Selección de cupos | ⏳ pendiente | — | — |
 | 004-b | `004-b-implementacion-seleccion-cupos.md` | Implementación — Selección de cupos | ⏳ pendiente | — | — |
@@ -44,6 +44,70 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-02 — `003-c-modulo-leaderboard` (módulo `leaderboard`)
+
+Tercer y último módulo de negocio de `003-motor-de-puntos` (de los 3 que
+permite el Artículo VII para esta feature). Sin marcadores de clarify
+pendientes — RF-342 ya se había resuelto en `003-a` (ranking visible a
+todos los autenticados). Lee `student_profiles.total_points` (la caché de
+`003-a`/`003-b`), nunca recalcula sumando el ledger en cada consulta.
+
+**Tres huecos reales en `contracts/points-and-leaderboard.md`, sección
+Ranking**, mismo tipo de hallazgo que las rondas anteriores: no tenía tabla
+de modos de fallo en absoluto (ni para `/leaderboard` ni para
+`/leaderboard/export`); no aclaraba el `limit` por defecto ni que —a
+diferencia del resto de listados de la API— **no es paginado** (top-N por
+`limit`, sin `page`/`totalPages`, decisión ya tomada en el contrato
+original, solo sin explicitar); y no describía el formato exacto del CSV de
+exportación. Enmendado con fecha 2026-09-02 antes de escribir código
+(Artículo IX).
+
+`LeaderboardService.getLeaderboard()`/`getStudentProgress()`/`exportCsv()`
+con `RANK() OVER` vía `$queryRaw` (Prisma no expresa funciones de ventana),
+usando `Prisma.sql`/`Prisma.join` para los filtros `career`/`faculty` en
+vez de concatenar strings a mano. Desempate determinista (RF-339): quien
+alcanzó el puntaje primero, vía `MAX(point_transactions.created_at)` del
+alumno. `GET /me/progress`: si el propio alumno no aparece en la población
+clasificada (`status <> 'ACTIVE'`), `rank: null` en vez de fallar —
+escenario real y alcanzable, no hipotético: el access token de 15 minutos
+no es revocable dentro de su ventana (skill `seguridad-y-roles`), así que
+un alumno recién deshabilitado por un admin puede seguir consultando su
+progreso con un token todavía vigente hasta que expire.
+
+**T093 (CE-301, CE-304), añadido a `activities` por decisión explícita del
+propio prompt** (no es de `leaderboard`, pero cierra junto a este módulo):
+`GET /activities/metrics` (nuevo, `ADMIN`, contrato agregado a
+`contracts/activities.md`) calcula `manualRatio` en vivo desde
+`attendances` (CE-304, cobertura real). CE-301 (latencia desde que el staff
+abre el escáner hasta la confirmación en pantalla) **no es enteramente
+medible desde el backend** — incluye tiempo de cliente, fuera de este
+repositorio (ADR-006); se agregó solo una línea de log estructurada con la
+duración del `POST .../checkin` en `CheckinService`, sin tabla ni endpoint
+de agregación nuevos — no existe infraestructura de métricas en este
+proyecto (sin Prometheus/StatsD) y construir una para un solo número es
+exactamente la anticipación que prohíbe el Artículo VII. Documentado así,
+explícitamente, en vez de fingir un p95 real que nadie puede consultar.
+
+`GET /leaderboard/export`: CSV con BOM UTF-8, mismo patrón exacto que
+`StudentsService.exportCsv` de `profiles` (001-d, incluida la razón del
+BOM: Excel en Windows rompe tildes/ñ sin él) — columnas
+`Posición,Código,Nombre,Carrera,Facultad,Puntos`, auditado
+(`LEADERBOARD_EXPORTED`, acceso masivo al padrón). Ruta `metrics` de
+`activities` declarada **antes** de `:id` en el controlador — mismo motivo
+ya documentado para `export` en `students.controller.ts` (001-d):
+`ParseUUIDPipe` la habría convertido en un 400 si quedaba después.
+
+- Jest: 276/276 (262 de `001`+`002`+`003-a`+`003-b` + 14 nuevas: contrato
+  `leaderboard` 7, contrato `me/progress` 4, contrato `activities/metrics`
+  2, integración de desempate determinista 1).
+- Playwright: 17/17 (15 previos + 2 nuevas de `leaderboard`).
+- `003` sigue con Implementación ⏳ pendiente en "Estado por feature" hasta
+  que `003-d` también cierre (integración cruzada de los tres módulos, T080-
+  T086, y el escenario 13 de campo).
+- Commits: `0c02104` (enmienda de contratos), `c34ad83` (módulo
+  `leaderboard`), `6965558` (`activities` T093: métricas + log de
+  duración), `606852c` (pruebas).
 
 ### 2026-09-02 — `003-b-modulo-points` (módulo `points`)
 
