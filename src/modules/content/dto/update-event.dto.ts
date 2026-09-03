@@ -28,6 +28,12 @@ export class UpdateEventDto {
   @Min(1)
   capacity?: number;
 
+  /** RF-401 (004): cuántos de los lugares totales se disputan por ranking de puntos. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  studentCapacity?: number;
+
   @IsOptional()
   @IsIn(['DRAFT', 'PUBLISHED'])
   status?: string;

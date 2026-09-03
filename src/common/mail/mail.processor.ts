@@ -5,7 +5,7 @@ import type { Job } from 'bullmq';
 import * as nodemailer from 'nodemailer';
 import type { EnvConfig } from '../../config/env.validation';
 import { MAIL_QUEUE } from './mail.constants';
-import type { ApplicationConfirmationJob, CheckinNotificationJob } from './mail.service';
+import type { ApplicationConfirmationJob, CheckinNotificationJob, SelectionNotificationJob } from './mail.service';
 
 /** Único lugar del proyecto que toca nodemailer -- el resto solo encola. */
 @Processor(MAIL_QUEUE)
@@ -34,6 +34,10 @@ export class MailProcessor extends WorkerHost {
       await this.sendCheckinNotification(job.data as CheckinNotificationJob);
       return;
     }
+    if (job.name === 'selection-notification') {
+      await this.sendSelectionNotification(job.data as SelectionNotificationJob);
+      return;
+    }
     this.logger.warn(`Job desconocido en la cola mail: ${job.name}`);
   }
 
@@ -56,6 +60,18 @@ export class MailProcessor extends WorkerHost {
       text:
         `Hola ${data.fullName},\n\nRegistramos tu participación en "${data.activityTitle}" y ` +
         `sumamos ${data.pointsAwarded} puntos a tu perfil.\n\nRevisa tu progreso cuando quieras desde tu cuenta.`,
+    });
+  }
+
+  private async sendSelectionNotification(data: SelectionNotificationJob): Promise<void> {
+    await this.transporter.sendMail({
+      from: this.config.get('MAIL_FROM', { infer: true }),
+      to: data.to,
+      subject: 'Tienes un lugar confirmado en TEDxUCB',
+      text:
+        `Hola ${data.fullName},\n\nTu lugar en TEDxUCB quedó confirmado. Este es tu código de ` +
+        `entrada, muéstralo en la puerta el día del evento:\n\n${data.entryCode}\n\nPuedes volver a ` +
+        'consultarlo cuando quieras desde tu perfil.',
     });
   }
 

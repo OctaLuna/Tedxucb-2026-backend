@@ -13,6 +13,7 @@ import { SpeakersModule } from './modules/speakers/speakers.module';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { PointsModule } from './modules/points/points.module';
 import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
+import { SelectionModule } from './modules/selection/selection.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -65,6 +66,11 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
     // sin colisión con 'me/profile'/'me/avatar'/'me/qr'/'me/points', mismo
     // patrón de segmentos literales distintos bajo 'me'.
     LeaderboardModule,
+    // SelectionModule: rutas nuevas ('selection', 'entries'), más
+    // 'me/entry' -- sin colisión con 'me/profile'/'me/avatar'/'me/qr'/
+    // 'me/points'/'me/progress', mismo patrón de segmentos literales
+    // distintos bajo 'me'.
+    SelectionModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

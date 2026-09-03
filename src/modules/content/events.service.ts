@@ -73,6 +73,7 @@ export class EventsService {
       startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
       venue: dto.venue,
       capacity: dto.capacity,
+      studentCapacity: dto.studentCapacity,
       status: dto.status,
       updatedById: actorId,
     };

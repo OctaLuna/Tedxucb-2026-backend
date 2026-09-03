@@ -16,6 +16,12 @@ export interface CheckinNotificationJob {
   pointsAwarded: number;
 }
 
+export interface SelectionNotificationJob {
+  to: string;
+  fullName: string;
+  entryCode: string;
+}
+
 @Injectable()
 export class MailService {
   constructor(@InjectQueue(MAIL_QUEUE) private readonly queue: Queue) {}
@@ -40,5 +46,10 @@ export class MailService {
    */
   async enqueueCheckinNotification(job: CheckinNotificationJob): Promise<void> {
     await this.queue.add('checkin-notification', job);
+  }
+
+  /** RF-410 (004): aviso al alumno seleccionado, con su entrada. Mismo principio: fuera de la transacción de selection.service.ts. */
+  async enqueueSelectionNotification(job: SelectionNotificationJob): Promise<void> {
+    await this.queue.add('selection-notification', job);
   }
 }
