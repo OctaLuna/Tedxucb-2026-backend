@@ -16,7 +16,7 @@ explícitas de qué fila y qué entrada de bitácora le corresponde (ver
 | `001` — Identidad y usuarios | ✅ | ✅ | ✅ | ✅ |
 | `002` — Sitio público | ✅ | ✅ | ✅ | ✅ |
 | `003` — Motor de puntos | ✅ | ✅ | ✅ | ✅ |
-| `004` — Selección de cupos | ✅ | ⏳ pendiente | ⏳ pendiente | ⏳ pendiente |
+| `004` — Selección de cupos | ✅ | ✅ | ✅ | ⏳ pendiente |
 
 Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 
@@ -36,7 +36,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 003-b | `003-b-modulo-points.md` | Módulo `points` (ajustes, reversiones, reconciliación, `points-cli`) | ✅ hecho | `7122cf8`, `db162be`, `65b9794`, `4840a80`, `2f0c202` | Jest: 262/262 · Playwright: 15/15 |
 | 003-c | `003-c-modulo-leaderboard.md` | Módulo `leaderboard` (ranking, progreso, export) | ✅ hecho | `0c02104`, `c34ad83`, `6965558`, `606852c` | Jest: 276/276 · Playwright: 17/17 |
 | 003-d | `003-d-integracion-y-pulido.md` | Integración cruzada y pulido — Motor de puntos | ✅ hecho | `6dada77`, `13ebc26`, `9d3a3de` | Jest: 289/289 · Playwright: 18/18 |
-| 004-a | `004-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Selección de cupos | ⏳ pendiente | — | — |
+| 004-a | `004-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Selección de cupos | ✅ hecho | `7999162`, `3776bdb` | — (documental) |
 | 004-b | `004-b-implementacion-seleccion-cupos.md` | Implementación — Selección de cupos | ⏳ pendiente | — | — |
 
 ## Bitácora
@@ -44,6 +44,69 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-03 — `004-a-clarify-plan-tasks` (clarify + plan + tasks de `004`)
+
+Primer prompt de `004-seleccion-de-cupos`, la última feature con ciclo SDD
+por completar. Al preguntar los 9 marcadores `[NECESITA CLARIFICACIÓN]` de
+`spec.md` tal como estaban redactados (invitación con plazo de
+confirmación, lista de espera ordenada, promoción automática al liberarse
+un lugar), la respuesta fue un rechazo total y enfático de ese diseño:
+"NO HAY CUPOS, ELIMINA TODO EL CONTENIDO QUE HAYA SOBRE CUPOS" / "NO HAY
+LISTA DE ESPERA". Una segunda ronda de preguntas, evitando la terminología
+que generó la confusión y confirmando primero si el aforo limitado seguía
+siendo real (sí), aclaró el modelo real: el administrador ejecuta la
+selección cuando decide; estar entre los mejores puntajes del ranking ya
+deja al alumno anotado, sin un paso de confirmación; no hay lista de
+espera ni promoción automática; un lugar liberado después solo se llena si
+el administrador decide hacerlo a mano. **Cambio de alcance del mismo peso
+que ADR-008 en `003-a`**, documentado en
+[ADR-009](../decisiones/ADR-009-seleccion-sin-confirmacion-ni-lista-de-espera.md):
+elimina Historia 3 completa y gran parte de Historia 2, y siete RF
+(RF-405, RF-411 a RF-415).
+
+Los 9 marcadores quedaron resueltos — 0 abiertos. Mapeo completo en el
+plan de esta sesión: 6 de los 9 se resolvieron **por eliminación** (dejaron
+de aplicar al desaparecer la confirmación y la lista de espera que
+motivaban la pregunta), y 3 con una decisión directa (RF-420 lugares no
+estudiantiles íntegramente manuales; RF-423 sin notificación a quien no
+fue seleccionado; la contingencia de conectividad en la puerta resuelta
+reutilizando la exportación de asistentes ya prevista, RF-421, sin
+requisito nuevo).
+
+`plan.md`/`data-model.md`/`contracts/seleccion.md`/`tasks.md` escritos
+desde cero (nunca habían existido para esta feature). Con el alcance
+reducido, **un solo módulo `selection`** basta (el diseño original habría
+justificado separar "invitaciones" de "control de acceso"; sin
+invitaciones no queda complejidad propia para un segundo módulo).
+Decisiones de diseño propias, no dictadas por `spec.md`:
+- **Reutilizar `events.capacity`** (ya existía desde `002-b`, sin usar) en
+  vez de una tabla nueva de aforo — solo le faltaba el desglose
+  estudiantil (`student_capacity`).
+- **Entrada sin rotación** (a diferencia del QR de puntos de `003`, que
+  rota cada 60s): compartir una entrada es una realidad social de
+  cualquier evento, no el fraude de puntos que la rotación existe para
+  evitar — RF-417 solo pide que no sirva dos veces.
+- **`selections.run_id` nullable:** una asignación manual (RF-420) "puede
+  resolverse en cualquier momento", según la propia Historia 4 — no toda
+  fila de selección pertenece a una ejecución por ranking.
+- **Revocar una selección individual es una operación distinta de revertir
+  toda una ejecución** (`selections.revoked_at` vs.
+  `selection_runs.reverted_at`): el caso límite de un seleccionado
+  deshabilitado no debería deshacer las otras 79 selecciones de la misma
+  corrida.
+
+`specs/README.md` y `spec.md` de `004` actualizados (checklist a "0
+abiertos", `Estado: Clarificado`); `memory/constitution.md` **no se
+tocó** — su referencia a "asignación de cupos" es una mención aislada del
+Artículo III, no la explicación confusa que motivó el rechazo inicial.
+
+- Sin pruebas de módulo — prompt puramente documental (no hay código
+  nuevo todavía; `004-b` implementa contra estos artefactos).
+- `004` queda con Plan ✅ y Tasks ✅ en "Estado por feature" —
+  Implementación sigue pendiente (`004-b`).
+- Commits: `7999162` (enmienda de `spec.md` + ADR-009 + `specs/README.md`),
+  `3776bdb` (`plan.md`/`data-model.md`/`contracts/`/`tasks.md`).
 
 ### 2026-09-02 — `003-d-integracion-y-pulido` (integración cruzada) — `003` completo
 
