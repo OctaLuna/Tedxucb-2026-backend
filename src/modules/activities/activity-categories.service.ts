@@ -25,6 +25,10 @@ export class ActivityCategoriesService {
   }
 
   async update(id: string, dto: UpdateActivityCategoryDto) {
+    const existing = await this.prisma.activityCategory.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppException(404, 'NOT_FOUND', 'Categoría no encontrada.');
+    }
     try {
       return await this.prisma.activityCategory.update({ where: { id }, data: dto });
     } catch (error) {

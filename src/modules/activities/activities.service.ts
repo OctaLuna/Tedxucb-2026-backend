@@ -108,6 +108,10 @@ export class ActivitiesService {
         allowMultipleCheckins: dto.allowMultipleCheckins,
         status: dto.status,
       },
+      // Mismo include que list()/getById() -- auditoría T101, 003-d: el
+      // PATCH devolvía la actividad sin category, la única inconsistencia
+      // real de forma entre los tres endpoints que devuelven una Activity.
+      include: { category: true },
     });
 
     const action =
