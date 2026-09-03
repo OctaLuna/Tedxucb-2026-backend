@@ -15,7 +15,7 @@ explícitas de qué fila y qué entrada de bitácora le corresponde (ver
 |---|---|---|---|---|
 | `001` — Identidad y usuarios | ✅ | ✅ | ✅ | ✅ |
 | `002` — Sitio público | ✅ | ✅ | ✅ | ✅ |
-| `003` — Motor de puntos | ✅ | ✅ | ✅ | ⏳ pendiente |
+| `003` — Motor de puntos | ✅ | ✅ | ✅ | ✅ |
 | `004` — Selección de cupos | ✅ | ⏳ pendiente | ⏳ pendiente | ⏳ pendiente |
 
 Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
@@ -35,7 +35,7 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 003-a | `003-a-modulo-activities.md` | Módulo `activities` (actividades, staff, check-in, QR) | ✅ hecho | `bce9029`, `a81e9df`, `f73a48a`, `185aad2` | Jest: 234/234 · Playwright: 14/14 |
 | 003-b | `003-b-modulo-points.md` | Módulo `points` (ajustes, reversiones, reconciliación, `points-cli`) | ✅ hecho | `7122cf8`, `db162be`, `65b9794`, `4840a80`, `2f0c202` | Jest: 262/262 · Playwright: 15/15 |
 | 003-c | `003-c-modulo-leaderboard.md` | Módulo `leaderboard` (ranking, progreso, export) | ✅ hecho | `0c02104`, `c34ad83`, `6965558`, `606852c` | Jest: 276/276 · Playwright: 17/17 |
-| 003-d | `003-d-integracion-y-pulido.md` | Integración cruzada y pulido — Motor de puntos | ⏳ pendiente | — | — |
+| 003-d | `003-d-integracion-y-pulido.md` | Integración cruzada y pulido — Motor de puntos | ✅ hecho | `6dada77`, `13ebc26`, `9d3a3de` | Jest: 289/289 · Playwright: 18/18 |
 | 004-a | `004-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Selección de cupos | ⏳ pendiente | — | — |
 | 004-b | `004-b-implementacion-seleccion-cupos.md` | Implementación — Selección de cupos | ⏳ pendiente | — | — |
 
@@ -44,6 +44,101 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-02 — `003-d-integracion-y-pulido` (integración cruzada) — `003` completo
+
+Cierra `003-motor-de-puntos`. **Cuarta feature del proyecto con
+Implementación ✅ completa**, y la de mayor riesgo: decide quién ocupa las
+80 butacas del evento. Corresponde al Grupo 7 de `tasks.md` (integración
+cruzada de `activities`+`points`+`leaderboard`, pruebas que solo tenían
+sentido con los tres módulos ya construidos) más lo que quedaba del
+Grupo 9 (pulido).
+
+**T080-T086, sin duplicar lo ya escrito:** T081 (concurrencia) y T082
+(idempotencia de check-in) ya estaban en
+`checkin-concurrency`/`checkin-idempotency.integration.spec.ts` (003-a) —
+se confirmó que siguen pasando, no se repitieron. T083 (trazabilidad de
+reversión) estaba parcialmente cubierta por `points-reverse.contract.spec.ts`
+(003-b, solo `/me/points`); se completó la parte cruzada que faltaba
+(`/leaderboard`/`/me/progress` reflejando el descenso).
+T080/T084/T086 eran genuinamente nuevos:
+`tests/integration/motor-de-puntos-flujo-completo.integration.spec.ts`
+(T080 ciclo completo de punta a punta; T083 reversión cruzada; T084 RF-306,
+cambiar `pointsValue` no recalcula lo ya otorgado) y
+`tests/integration/reconciliation-deteccion-automatica.integration.spec.ts`
+(T086, automatiza lo que 003-b solo verificó a mano). T085 no aplica
+(reclamos eliminados, ADR-008). E2E nuevo:
+`tests/e2e/points-integration.e2e.spec.ts` — el único flujo cruzado que
+ningún E2E individual cubría (un ajuste real vía `POST /points/adjustments`
+moviendo el orden de `/leaderboard`, no solo puntos sembrados por Prisma
+directo).
+
+**T101 (auditoría contrato↔código, no `@nestjs/swagger`):** ningún módulo
+de este proyecto usa generación de OpenAPI en ocho rondas de
+implementación; introducirla ahora habría sido infraestructura nueva y
+aislada (solo cubriría `003`), desproporcionada para un "pulido"
+(Artículo VII). En su lugar se auditaron los 3 contratos de `003` contra
+el código real, línea por línea. Hallazgos reales, no solo de redacción:
+
+- **`contracts/checkin.md` se contradecía a sí mismo:** la sección
+  "Garantías transaccionales" (paso 5) seguía prometiendo `200` en el
+  conflicto de `point_transactions`, pero la sección "Idempotencia" de más
+  abajo (corregida en `003-a`) ya documentaba que ese camino es
+  mecánicamente inalcanzable — el índice de `attendances` siempre dispara
+  primero. El paso 5 nunca se había actualizado. Corregido.
+- **Bug real, no solo de documentación:** `PATCH /activity-categories/:id`
+  con un `id` inexistente devolvía un `500` crudo de Prisma (`P2025` sin
+  capturar) en vez de `404 NOT_FOUND` — a diferencia de cómo
+  `ActivitiesService` sí verifica existencia antes de todas sus
+  mutaciones. Corregido en `activity-categories.service.ts`.
+- **Hueco de pruebas real:** el endpoint de categorías existe desde
+  `003-a` (`contracts/activities.md`) y nunca tuvo ni una sola prueba de
+  contrato. Escrito `tests/contract/activity-categories.contract.spec.ts`
+  (9 casos), que cubre también el bug recién corregido.
+- `ActivitiesService.update()` (`PATCH /activities/:id`) no incluía
+  `category` en su respuesta, a diferencia de `list()`/`getById()` —
+  inconsistencia real de forma entre los tres endpoints que devuelven una
+  `Activity`. Corregido con el mismo `include` que ya usan los otros dos.
+- El ejemplo de `GET /me/points` no mostraba `activity` en una reversión
+  de un movimiento `ACTIVITY`, aunque `LedgerService.reverseMovement`
+  (decisión de `003-c`) sí lo hereda a propósito. Contrato actualizado
+  para reflejar el comportamiento real y por qué es mejor que el ejemplo
+  original.
+- `points-cli` se documentaba como binario suelto (`$ points-cli
+  reconcile ...`) cuando en realidad es el script de `package.json`
+  (`npm run points-cli -- reconcile ...`) — corregido en el contrato y en
+  `quickstart.md`.
+
+**T102:** añadida una sección "Equivalente técnico (sin frontend)" a
+`quickstart.md` con los comandos `curl`/`points-cli` reales para cada
+escenario — este repositorio es solo backend (ADR-006), así que hasta que
+exista una interfaz, cualquiera que quiera ejecutar los 13 escenarios hoy
+necesita el comando real, no la narración pensada para el staff del
+evento. De paso, corregida una referencia sobreviviente a "el día del
+corte" en el escenario 11 que la ronda de `003-a` había pasado por alto
+(el concepto se eliminó con ADR-008, pero esa frase específica no se
+tocó entonces).
+
+**T103** (escenario 13, prueba de campo física — 20 alumnos simulados, 2
+staff, red de campus real, teléfonos de gama media): **sigue pendiente,
+explícitamente operativo, no de código.** No es una tarea que un agente
+pueda cerrar y no bloquea el resto del proyecto — debe ejecutarse antes de
+la primera actividad real del evento del 9 de noviembre.
+
+**T100 (límites de frecuencia diferenciados para check-in) y T104 (prueba
+de carga)** quedan fuera de alcance: ningún prompt de `003` los reclamó
+(ni `003-a` ni este). Siguen sin marcar en `tasks.md` — deuda técnica
+reconocida, no bloqueante para cerrar la feature.
+
+- Jest: 289/289 (280 de `001`+`002`+`003-a/b/c` + 4 de integración
+  cruzada + 9 de `activity-categories`, hueco de pruebas encontrado en la
+  auditoría T101 — no eran parte del plan original de este prompt).
+- Playwright: 18/18 (17 previos + 1 nueva, `points-integration.e2e.spec.ts`).
+- `003` queda con Implementación ✅ en "Estado por feature" — **feature
+  completa**, cuarta del proyecto (tras `001`, `002`, y ahora `003`).
+- Commits: `6dada77` (bugs reales de la auditoría T101 + su prueba),
+  `13ebc26` (pruebas de integración cruzada T080-T086), `9d3a3de`
+  (auditoría de contratos T101 + `quickstart.md` T102).
 
 ### 2026-09-02 — `003-c-modulo-leaderboard` (módulo `leaderboard`)
 
