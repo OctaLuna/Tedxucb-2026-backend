@@ -27,10 +27,12 @@ specs/
 | `001` | Identidad, usuarios y perfiles | — | spec ✅ · plan ✅ · tasks ✅ |
 | `002` | Sitio público TEDxUCB | 001 (parcial) | spec ✅ · plan ✅ · tasks ✅ |
 | `003` | Motor de puntos y participación | 001 | spec ✅ · plan ✅ · tasks ✅ |
-| `004` | Selección y gestión de cupos | 003 | spec ✅ · plan ⏳ · tasks ⏳ |
+| `004` | Selección y gestión de cupos | 003 | spec ✅ · plan ✅ · tasks ✅ |
 
-`003` tiene el ciclo técnico completo porque es la feature de mayor riesgo: es
-la que decide, en última instancia, quién ocupa los 80 asientos.
+Las cuatro features tienen ya el ciclo técnico completo (`plan.md` +
+`data-model.md` + `contracts/` + `tasks.md`). `003` y `004` son las de mayor
+riesgo: entre las dos deciden, en última instancia, quién ocupa los 80
+asientos.
 
 ## Orden de trabajo recomendado
 
@@ -49,11 +51,11 @@ speakers mientras el resto se construye.
 |---|---|
 | Constitution | ✅ `memory/constitution.md` |
 | Specify | ✅ 4 specs redactados |
-| Clarify | 🟡 Ronda 1 completada — **10 marcadores abiertos** (001: 0 ✅ · 002: 0 ✅ · 003: 0 ✅ · 004: 10) |
-| Plan | 🟡 `001`, `002` y `003` |
-| Tasks | 🟡 `001`, `002` y `003` |
+| Clarify | ✅ completa — **0 marcadores abiertos** (001: 0 · 002: 0 · 003: 0 · 004: 0) |
+| Plan | ✅ `001`, `002`, `003` y `004` |
+| Tasks | ✅ `001`, `002`, `003` y `004` |
 | Analyze | ✅ `docs/analisis-sdd.md` |
-| Implement | ⛔ Bloqueada |
+| Implement | 🟡 `001`, `002` y `003` implementados y probados (`docs/progress.md`); `004` pendiente (`004-b`) |
 
 ## Decisiones tomadas
 
@@ -82,6 +84,9 @@ speakers mientras el resto se construye.
 | 2026-09-02 | Caso límite "cupo lleno" | Las actividades no tienen límite de asistentes; se elimina el campo `capacity` del modelo y `422 ACTIVITY_FULL` del contrato de check-in |
 | 2026-09-02 | Vigencia del token QR | 60 segundos, confirmado |
 | 2026-09-02 | RF-334 a RF-337 (Historia 5) | Se elimina el canal formal de reclamos y el concepto de fecha de corte del ranking; el ranking es una vista continua sin evento de cierre (ver ADR-008) |
+| 2026-09-03 | RF-411 a RF-415 (Historia 2 y 3) | Se elimina la confirmación del alumno, la lista de espera y la promoción automática: estar seleccionado y recibir el aviso ya deja el lugar en firme; un lugar liberado solo se llena si el administrador decide hacerlo a mano (ver ADR-009) |
+| 2026-09-03 | RF-420 | Los ~20 lugares no estudiantiles son íntegramente de asignación manual del administrador |
+| 2026-09-03 | RF-423 | El sistema no notifica a los alumnos que no fueron seleccionados |
 
 La decisión de auto-registro **abrió más preguntas de las que cerró**: al dejar
 de controlar la organización quién entra al sistema, aparecieron seis requisitos
@@ -105,6 +110,22 @@ varios marcadores a la vez porque la misma pregunta aparecía repetida en
 `spec.md` y en `contracts/`. La decisión sobre reclamos fue la de mayor peso:
 elimina una entidad completa (`PointClaim`) y el concepto de fecha de corte
 del ranking — ver [ADR-008](../docs/decisiones/README.md).
+
+La ronda de clarificación del 2026-09-03 resolvió los 9 marcadores reales de
+`004` (spec ✅ plan ✅ tasks ✅) — la de mayor cambio de alcance de las cuatro
+rondas hechas hasta ahora. Al preguntar los marcadores tal como estaban
+redactados en el diseño original (invitación con plazo de confirmación,
+lista de espera ordenada, promoción automática al liberarse un lugar), la
+respuesta del responsable del proyecto fue rechazar ese mecanismo por
+completo: el aforo limitado seguía siendo real, pero el diseño alrededor de
+la selección era mucho más elaborado de lo que tenía en mente. Una segunda
+ronda de preguntas, evitando la terminología que había generado la
+confusión inicial, confirmó el modelo real: el administrador ejecuta la
+selección cuando decide, los mejores posicionados del ranking quedan
+anotados de inmediato sin un paso de confirmación, y un lugar liberado
+después solo se llena si el administrador decide hacerlo a mano — ver
+[ADR-009](../docs/decisiones/README.md), de peso comparable a ADR-008:
+elimina dos historias de usuario completas y siete requisitos funcionales.
 
 ## Reglas del repositorio
 

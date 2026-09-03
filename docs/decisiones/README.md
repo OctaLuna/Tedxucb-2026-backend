@@ -14,6 +14,7 @@ descartaron.
 | [006](ADR-006-repositorio-solo-backend.md) | Este repositorio es exclusivamente el backend | 2026-08-30 |
 | [007](ADR-007-no-existe-padron-institucional.md) | No existe padrón institucional: la revisión manual reemplaza la validación automática | 2026-08-30 |
 | [008](ADR-008-sin-reclamos-ni-corte-formal.md) | Sin canal de reclamos ni fecha de corte del ranking | 2026-09-02 |
+| [009](ADR-009-seleccion-sin-confirmacion-ni-lista-de-espera.md) | Selección de asistentes sin confirmación ni lista de espera | 2026-09-03 |
 
 ## Formato
 
