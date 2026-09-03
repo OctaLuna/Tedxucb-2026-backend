@@ -92,12 +92,14 @@ Se implementa primero porque todo lo demás depende de él.
 
 ## Grupo 4 — Entradas y control de acceso
 
-- [ ] T050 [P] Generación del código de entrada al crear una selección
-      (hash guardado, código en claro solo en la respuesta/correo — mismo
-      principio que `auth_tokens.token_hash`)
+- [ ] T050 [P] Generación del código de entrada al crear una selección —
+      en claro (no hasheado, a diferencia de `auth_tokens.token_hash`):
+      Historia 2 escenario 2 exige poder volver a mostrarlo vía
+      `GET /me/entry`, imposible con un hash de una sola vía (corrección
+      2026-09-03, ver `data-model.md` §3)
 - [ ] T051 [P] `GET /me/entry`: el alumno consulta su propio resultado, sin
       revelar nada si no fue seleccionado (RF-423)
-- [ ] T052 Servicio de escaneo: `UPDATE ... WHERE entry_code_hash = $1 AND
+- [ ] T052 Servicio de escaneo: `UPDATE ... WHERE entry_code = $1 AND
       entry_used_at IS NULL` condicionado (Artículo IX, sin lectura previa
       con condición de carrera)
 - [ ] T053 `POST /entries/scan` con guard `STAFF`/`ADMIN` (sin asignación

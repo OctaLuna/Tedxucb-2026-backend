@@ -78,9 +78,15 @@ CREATE TABLE selections (
   reason              TEXT,
   -- Entrada (RF-416/RF-417): 1:1 con la selección, se genera en el mismo
   -- paso -- no hay razón de negocio para separarla en su propia tabla
-  -- (Artículo VIII). Se guarda el hash del código, nunca el código en
-  -- claro, mismo patrón que auth_tokens.token_hash (001).
-  entry_code_hash     TEXT NOT NULL UNIQUE,
+  -- (Artículo VIII). En claro, NO hasheado -- corrección 2026-09-03,
+  -- 004-b: a diferencia de auth_tokens.token_hash (001), Historia 2
+  -- escenario 2 exige que el alumno pueda volver a ver su entrada en
+  -- cualquier momento vía GET /me/entry, no solo desde el correo inicial
+  -- -- imposible si solo se guarda el hash de una sola vía. Menor riesgo
+  -- que un token de sesión: una entrada filtrada permite un solo ingreso
+  -- indebido y acotado, no una toma de cuenta persistente. Sigue siendo
+  -- aleatoria de alta entropía (generateOpaqueToken(), 32 bytes).
+  entry_code          TEXT NOT NULL UNIQUE,
   entry_used_at       TIMESTAMPTZ,
   entry_validated_by  UUID REFERENCES users(id),
   revoked_at          TIMESTAMPTZ,
@@ -132,7 +138,7 @@ espíritu: nunca se borra la fila, se marca).
 ## 4. Escaneo en la puerta
 
 Sin tabla nueva: `entry_used_at`/`entry_validated_by` en `selections` ya lo
-cubren. El escaneo es un `UPDATE ... WHERE entry_code_hash = $1 AND
+cubren. El escaneo es un `UPDATE ... WHERE entry_code = $1 AND
 entry_used_at IS NULL` condicionado (mismo patrón que
 `applications.service.ts` de `002` ya usa para una actualización
 condicionada) — si afecta cero filas, ya estaba usada o el código no
@@ -143,7 +149,7 @@ existe; el motor decide, no una lectura previa con condición de carrera.
 ```
 events ──< selection_runs ──< selections >── student_profiles (opcional)
                                    │
-                                   └── entry_code_hash / entry_used_at (la "entrada", en la misma fila)
+                                   └── entry_code / entry_used_at (la "entrada", en la misma fila)
 ```
 
 ## 6. Datos semilla

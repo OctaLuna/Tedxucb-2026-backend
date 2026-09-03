@@ -166,7 +166,7 @@ control, no docenas de actividades paralelas).
 ```
 
 Verificación en el servidor, nunca en el cliente (mismo principio que
-`checkin.md`). `UPDATE ... WHERE entry_code_hash = $1 AND entry_used_at IS
+`checkin.md`). `UPDATE ... WHERE entry_code = $1 AND entry_used_at IS
 NULL` condicionado (Artículo IX): si afecta cero filas, ya estaba usada.
 
 ```json
