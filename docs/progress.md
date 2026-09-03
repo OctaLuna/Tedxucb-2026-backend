@@ -16,7 +16,7 @@ explícitas de qué fila y qué entrada de bitácora le corresponde (ver
 | `001` — Identidad y usuarios | ✅ | ✅ | ✅ | ✅ |
 | `002` — Sitio público | ✅ | ✅ | ✅ | ✅ |
 | `003` — Motor de puntos | ✅ | ✅ | ✅ | ✅ |
-| `004` — Selección de cupos | ✅ | ✅ | ✅ | ⏳ pendiente |
+| `004` — Selección de cupos | ✅ | ✅ | ✅ | ✅ |
 
 Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 
@@ -37,13 +37,78 @@ Leyenda: ⏳ pendiente · 🔄 en curso · ✅ hecho · 🚫 bloqueado.
 | 003-c | `003-c-modulo-leaderboard.md` | Módulo `leaderboard` (ranking, progreso, export) | ✅ hecho | `0c02104`, `c34ad83`, `6965558`, `606852c` | Jest: 276/276 · Playwright: 17/17 |
 | 003-d | `003-d-integracion-y-pulido.md` | Integración cruzada y pulido — Motor de puntos | ✅ hecho | `6dada77`, `13ebc26`, `9d3a3de` | Jest: 289/289 · Playwright: 18/18 |
 | 004-a | `004-a-clarify-plan-tasks.md` | Clarify + Plan + Tasks — Selección de cupos | ✅ hecho | `7999162`, `3776bdb` | — (documental) |
-| 004-b | `004-b-implementacion-seleccion-cupos.md` | Implementación — Selección de cupos | ⏳ pendiente | — | — |
+| 004-b | `004-b-implementacion-seleccion-cupos.md` | Implementación — módulo `selection` | ✅ hecho | `bd8557f`, `2cd03b1`, `9b185fe` | Jest: 322/322 · Playwright: 19/19 |
 
 ## Bitácora
 
 _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
+
+### 2026-09-03 — `004-b-implementacion-seleccion-cupos` (módulo `selection`) — `004` y el backend completos
+
+Última pieza del backend. **Quinta y última ronda de implementación —
+las 4 features (`001` a `004`) quedan con Implementación ✅.**
+
+El prompt `004-b-implementacion-seleccion-cupos.md` estaba desactualizado
+(escrito antes de ADR-009: todavía instruía construir invitación con
+plazo, lista de espera y promoción automática vía BullMQ). Corregido antes
+de ejecutar — mismo criterio que ya se aplicó a `003-b/c/d` tras ADR-008
+— y se siguió `tasks.md` de `004-a` (ya correcto) en su lugar.
+
+**Bug de diseño real, encontrado al planear, antes de escribir código:**
+`data-model.md`/`contracts/seleccion.md` de `004-a` diseñaron
+`entry_code_hash` (mismo patrón que `auth_tokens.token_hash`, solo el hash
+en la base). Pero Historia 2 escenario 2 exige que el alumno pueda volver
+a ver su entrada en cualquier momento vía `GET /me/entry`, no solo desde
+el correo inicial — imposible con un hash de una sola vía. Corregido a
+`entry_code` en claro (mismo generador aleatorio,
+`generateOpaqueToken()`, sin `hashToken()` después): a diferencia de una
+contraseña o un token de sesión, una entrada de evento es más parecida a
+un pase de abordar, necesita poder re-mostrarse. Riesgo acotado: una
+entrada filtrada permite un solo ingreso indebido, no una toma de cuenta
+persistente.
+
+Un solo módulo `selection` (decidido en `004-a`): `SelectionService`
+(`execute`/`revert`/`getResult`/`manualAssign`/`revokeSelection`/
+`exportCsv`) y `EntriesService` (`scan`/`liveCount`). `execute()` reutiliza
+`LeaderboardService.getLeaderboard()` de `003-c` en vez de reimplementar
+el `RANK() OVER` — necesitó agregarle `exports: [LeaderboardService]` a
+`leaderboard.module.ts`, que no lo tenía. `events.studentCapacity` se
+agregó a `UpdateEventDto`/`EventsService` del módulo `content` (`002`) en
+vez de crear un endpoint nuevo — reutiliza `events.capacity`, sin usar
+desde `002-b`.
+
+**Caso límite real, encontrado y resuelto al diseñar `execute()`, no
+hipotético:** un alumno con una selección manual viva (p. ej. asignado
+como invitado especial) que también rankea entre los mejores puntajes
+haría que la inserción `RANKING` chocara contra
+`one_active_selection_per_student`. `execute()` pide de más al ranking
+(`studentCapacity + ya-seleccionados`), excluye a quien ya tiene lugar, y
+completa con el siguiente candidato — nunca falla por este cruce.
+
+`EntriesService.scan()`: mismo patrón de `UPDATE` condicionado que
+`ApplicationsService.convertToSpeaker` (`002`) ya usa para una
+actualización sin condición de carrera — la garantía de "un solo uso"
+(RF-417) vive en el `WHERE entry_used_at IS NULL` del `UPDATE`, no en un
+`SELECT` previo. A diferencia del check-in de `003`, sin asignación
+explícita por actividad: un solo punto de control en la puerta, cualquier
+`STAFF`/`ADMIN` autenticado valida.
+
+- Jest: 322/322 (289 previos + 33 nuevas: contrato `selection` 17,
+  contrato `entries` 8, restricciones del motor 5, integración de flujo
+  T062/T064 2, concurrencia real del escaneo en puerta 1 — exigida
+  explícitamente por el prompt, no está en `tasks.md`).
+- Playwright: 19/19 (18 previos + 1 nueva, `selection.e2e.spec.ts`: ciclo
+  completo sin paso de confirmación, mismo criterio que ADR-009).
+- `004` y el proyecto completo (`001`-`004`) quedan con Implementación ✅
+  en "Estado por feature" — **backend terminado**.
+- Pendiente **no de código**: T072/T103 de `tasks.md`, el escenario de
+  campo físico (escaneo real en la puerta, red del recinto, teléfonos de
+  gama media) antes de la primera actividad real del evento del 9 de
+  noviembre — mismo tratamiento que el escenario 13 de `003`.
+- Commits: `bd8557f` (esquema + migración + export de `LeaderboardService`),
+  `2cd03b1` (módulo `selection` completo), `9b185fe` (pruebas).
 
 ### 2026-09-03 — `004-a-clarify-plan-tasks` (clarify + plan + tasks de `004`)
 
