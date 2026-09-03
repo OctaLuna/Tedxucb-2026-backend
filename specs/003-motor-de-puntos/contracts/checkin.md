@@ -107,12 +107,21 @@ Todo lo siguiente ocurre dentro de una única transacción de base de datos:
 3. Verificar estado `PUBLISHED` y ventana de check-in abierta.
 4. Insertar en `attendances` → si viola el índice único parcial, abortar con
    `409 ALREADY_CHECKED_IN` devolviendo el registro existente.
-5. Insertar en `point_transactions` con la clave de idempotencia derivada → si
-   viola la restricción única, la operación ya ocurrió: devolver `200` con el
-   resultado previo, **no** un error.
+5. Insertar en `point_transactions` con la clave de idempotencia derivada
+   (`checkin:{activityId}:{studentId}`).
 6. Bloquear la fila del alumno (`SELECT ... FOR UPDATE`) y actualizar su caché
    de puntaje.
 7. Confirmar.
+
+**Corrección 2026-09-02 (auditoría T101, este paso 5 había quedado
+desactualizado respecto a la sección "Idempotencia" de abajo):** el paso 5
+en la práctica nunca dispara su propio conflicto — el orden de inserción
+(asistencia antes que movimiento de puntos) hace que el índice único
+parcial del paso 4 siempre viole primero ante un reintento. No existe un
+camino real donde `point_transactions` sea el primero en rechazar la
+petición, así que no hay una rama de `200` que implementar: todo repetido
+llega como `409 ALREADY_CHECKED_IN` desde el paso 4. Ver el detalle
+completo en "Idempotencia — comportamiento exigido".
 
 La notificación al alumno se encola **después** de confirmar, nunca dentro de la
 transacción: un fallo del servicio de correo no puede impedir que un alumno

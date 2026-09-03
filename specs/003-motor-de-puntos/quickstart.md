@@ -13,6 +13,63 @@ prueba nada sobre las condiciones reales de uso (Artículo VI).
 
 ---
 
+## Equivalente técnico (sin frontend)
+
+> Añadido 2026-09-02 (T102, `003-d`). Este repositorio es solo backend
+> (ADR-006): los escenarios de abajo narran la experiencia de staff/alumno
+> a través de una interfaz que todavía no existe. Hasta que exista, se
+> ejecutan igual contra la API real con estos comandos — cada escenario
+> abajo referencia cuál usar. `$TOKEN_*` es el `accessToken` de
+> `POST /api/v1/auth/login`; `$ACTIVITY_ID`/`$STUDENT_ID` los `id` reales
+> de lo creado en los pasos anteriores.
+
+```bash
+# Preparación: actividad publicada de 10 puntos, staff A asignado
+curl -s -X POST http://localhost:3000/api/v1/activities \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H 'Content-Type: application/json' \
+  -d '{"title":"Taller de prueba","pointsValue":10,"startsAt":"2026-09-15T18:00:00Z","endsAt":"2026-09-15T20:00:00Z","checkinOpensAt":"2026-09-15T17:45:00Z","checkinClosesAt":"2026-09-15T19:30:00Z"}'
+curl -s -X PATCH http://localhost:3000/api/v1/activities/$ACTIVITY_ID \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H 'Content-Type: application/json' -d '{"status":"PUBLISHED"}'
+curl -s -X POST http://localhost:3000/api/v1/activities/$ACTIVITY_ID/staff \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H 'Content-Type: application/json' -d '{"userId":"'$STAFF_A_ID'"}'
+
+# El alumno obtiene su QR (rota cada 60s -- reemplaza $QR_TOKEN antes de que venza)
+curl -s http://localhost:3000/api/v1/me/qr -H "Authorization: Bearer $TOKEN_STUDENT"
+
+# El staff escanea (escenarios 1, 2, 6, 7)
+curl -s -X POST http://localhost:3000/api/v1/activities/$ACTIVITY_ID/checkin \
+  -H "Authorization: Bearer $TOKEN_STAFF_A" -H 'Content-Type: application/json' -d '{"qrToken":"'$QR_TOKEN'"}'
+
+# Registro manual (escenario 8)
+curl -s -X POST http://localhost:3000/api/v1/activities/$ACTIVITY_ID/checkin/manual \
+  -H "Authorization: Bearer $TOKEN_STAFF_A" -H 'Content-Type: application/json' \
+  -d '{"studentId":"'$STUDENT_ID'","note":"Sin batería, verificado con carnet."}'
+
+# Historial del alumno (escenarios 1, 9, 12)
+curl -s http://localhost:3000/api/v1/me/points -H "Authorization: Bearer $TOKEN_STUDENT"
+
+# Reversión, con motivo (escenario 9) -- $TRANSACTION_ID sale de me/points
+curl -s -X POST http://localhost:3000/api/v1/points/$TRANSACTION_ID/reverse \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H 'Content-Type: application/json' \
+  -d '{"reason":"Registro duplicado, corregido en la prueba de campo."}'
+
+# Penalización mayor que el saldo (escenario 10)
+curl -s -X POST http://localhost:3000/api/v1/points/adjustments \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H 'Content-Type: application/json' \
+  -d '{"studentId":"'$STUDENT_ID'","points":-50,"type":"PENALTY","reason":"Prueba de truncamiento a cero."}'
+
+# Reconciliación (escenario 11) -- points-cli no es un binario instalado,
+# es el script de package.json (ver contracts/points-and-leaderboard.md)
+npm run points-cli -- reconcile --all --json
+npm run points-cli -- reconcile --all --fix --operator admin@ucb.edu.bo --json
+
+# Cambio de valor de actividad (escenario 12)
+curl -s -X PATCH http://localhost:3000/api/v1/activities/$ACTIVITY_ID \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H 'Content-Type: application/json' -d '{"pointsValue":20}'
+```
+
+---
+
 ## Preparación
 
 1. Base de datos limpia con migraciones aplicadas.
@@ -145,13 +202,17 @@ exactamente lo que el Artículo IV prohíbe.
 **Objetivo:** RF-332, RF-333, CE-303.
 
 1. Alterar directamente en base de datos la caché de puntaje de un alumno.
-2. Ejecutar `points-cli reconcile --all --json`.
+2. Ejecutar `npm run points-cli -- reconcile --all --json` (ver
+   "Equivalente técnico" arriba).
 
-**Se espera:** la inconsistencia se reporta. Con `--fix` la caché se recalcula
-desde el libro mayor y queda constancia en auditoría.
+**Se espera:** la inconsistencia se reporta. Con `--fix --operator
+<email-de-un-admin>` la caché se recalcula desde el libro mayor y queda
+constancia en auditoría, a nombre de quien lo ejecutó.
 
 **Falla si:** el proceso no detecta la diferencia. Sin esta red de seguridad, una
-desincronización puede llegar sin ser vista hasta el día del corte.
+desincronización puede llegar sin ser vista hasta el día del evento (referencia
+a "el día del corte" corregida 2026-09-02, auditoría T101/T102 — ya no existe
+ese concepto, ver ADR-008).
 
 ## Escenario 12 — Cambio de valor de una actividad
 

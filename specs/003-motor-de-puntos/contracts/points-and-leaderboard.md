@@ -30,6 +30,7 @@
       "id": "7b2e...",
       "points": -10,
       "type": "REVERSAL",
+      "activity": { "id": "3c7a...", "title": "Taller de Economía Circular" },
       "reversesId": "9c1f...",
       "reason": "Registro duplicado por error del staff",
       "createdAt": "2026-09-16T10:04:00Z"
@@ -43,6 +44,15 @@
 Ambos movimientos aparecen: el original y su reversión, cada uno con su motivo
 (RF-329, Artículo IV). El alumno nunca debe encontrarse con un puntaje que
 cambió sin explicación.
+
+**Corrección 2026-09-02 (auditoría T101):** el ejemplo original de esta
+sección no mostraba `activity` en la reversión. La reversión de un
+movimiento `ACTIVITY` hereda el mismo `activityId` del original (así lo
+escribe `LedgerService.reverseMovement`, decisión de `003-c`) precisamente
+para que el alumno vea a qué actividad corresponde el ajuste sin tener que
+cruzar manualmente con el `reversesId` — `activity`/`method` solo se omiten
+en un movimiento (original o reversión) que nunca estuvo ligado a una
+actividad, como un `BONUS` administrativo.
 
 ### `GET /api/v1/me/progress`
 
@@ -166,8 +176,14 @@ campo entre comillas) — mismo formato que ya usa `GET /students/export` de
 ## Operación de consola (Artículo II)
 
 ```
-$ points-cli reconcile --student 202012345 --json
+$ npm run points-cli -- reconcile --student 202012345 --json
 ```
+
+(`points-cli` no es un binario instalado — es el script `package.json`
+`"points-cli": "ts-node src/cli/points-cli.ts"`, invocado con `npm run
+... --` para que los flags lleguen al script y no a `npm`. Corregido
+2026-09-02, auditoría T101: el ejemplo original mostraba un binario suelto
+que nunca existió.)
 
 ```json
 {

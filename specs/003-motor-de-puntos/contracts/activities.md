@@ -31,7 +31,7 @@ libremente entre los cuatro estados; sin filtro, devuelve todas.
       "id": "3c7a...",
       "title": "Taller de Economía Circular",
       "description": "...",
-      "category": { "id": "...", "name": "Taller" },
+      "category": { "id": "...", "name": "Taller", "color": "#4CAF50", "suggestedPoints": 10 },
       "location": "Auditorio menor",
       "pointsValue": 10,
       "startsAt": "2026-09-15T18:00:00Z",
@@ -200,7 +200,11 @@ actividades ya creadas al definir una nueva, vía el catálogo de arriba).
 
 ### `PATCH /api/v1/activity-categories/:id`
 
-Edita `name`/`color`/`suggestedPoints`. Mismos modos de fallo que `POST`.
+Edita `name`/`color`/`suggestedPoints`. Mismos modos de fallo que `POST`,
+más `404 NOT_FOUND` si el id no existe (corregido 2026-09-02, auditoría
+T101: antes de esta fecha el `id` inexistente producía un `500` crudo de
+Prisma, no un error propio — bug real encontrado al auditar este
+contrato, no solo un hueco de documentación).
 
 ---
 
