@@ -8,5 +8,8 @@ import { LeaderboardService } from './leaderboard.service';
   imports: [AuthModule],
   controllers: [LeaderboardController, MeProgressController],
   providers: [LeaderboardService],
+  // selection (004) reutiliza getLeaderboard() para resolver quién entra
+  // por ranking -- no reimplementa el RANK() OVER.
+  exports: [LeaderboardService],
 })
 export class LeaderboardModule {}

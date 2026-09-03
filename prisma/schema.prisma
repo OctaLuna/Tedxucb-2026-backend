@@ -43,6 +43,11 @@ model User {
   assignedActivityStaff      ActivityStaff[]      @relation("ActivityStaffAssignedBy")
   validatedAttendances       Attendance[]         @relation("AttendanceValidatedBy")
   createdPointTransactions   PointTransaction[]   @relation("PointTransactionCreatedBy")
+  executedSelectionRuns      SelectionRun[]       @relation("SelectionRunExecutedBy")
+  revertedSelectionRuns      SelectionRun[]       @relation("SelectionRunRevertedBy")
+  assignedSelections         Selection[]          @relation("SelectionAssignedBy")
+  validatedSelectionEntries  Selection[]          @relation("SelectionEntryValidatedBy")
+  revokedSelections          Selection[]          @relation("SelectionRevokedBy")
 
   @@map("users")
 }
@@ -158,6 +163,7 @@ model StudentProfile {
   correctionRequests CorrectionRequest[]
   attendances        Attendance[]
   pointTransactions  PointTransaction[]
+  selections         Selection[]
 
   @@index([totalPoints(sort: Desc)])
   @@map("student_profiles")
@@ -219,19 +225,24 @@ model CorrectionRequest {
 // ediciones a propósito -- el spec solo pide editar el evento actual, no
 // gestionar varias ediciones (Artículo VII, ver plan.md de 002).
 model Event {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String
-  tagline     String?
-  startsAt    DateTime @map("starts_at") @db.Timestamptz
-  venue       String?
-  capacity    Int?
-  imageUrl    String?  @map("image_url")
-  status      String   @default("DRAFT")
-  updatedById String?  @map("updated_by") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  tagline         String?
+  startsAt        DateTime @map("starts_at") @db.Timestamptz
+  venue           String?
+  capacity        Int?
+  // Desglose del aforo total -- cuántos de esos lugares se disputan por
+  // ranking de puntos (004, RF-401). El resto (capacity - studentCapacity)
+  // es de asignación manual (RF-420).
+  studentCapacity Int?     @map("student_capacity")
+  imageUrl        String?  @map("image_url")
+  status          String   @default("DRAFT")
+  updatedById     String?  @map("updated_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  updatedBy User? @relation(fields: [updatedById], references: [id])
+  updatedBy     User?          @relation(fields: [updatedById], references: [id])
+  selectionRuns SelectionRun[]
 
   @@map("events")
 }
@@ -417,4 +428,67 @@ model PointTransaction {
   @@index([studentId, createdAt(sort: Desc)])
   @@index([activityId])
   @@map("point_transactions")
+}
+
+// ---------------------------------------------------------------------
+// 004-seleccion-de-cupos -- módulo `selection`. Tras ADR-009: sin máquina
+// de estados de invitación, sin lista de espera -- una persona está
+// seleccionada o no lo está (ver data-model.md de 004).
+// ---------------------------------------------------------------------
+
+model SelectionRun {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId                 String    @map("event_id") @db.Uuid
+  executedById            String    @map("executed_by") @db.Uuid
+  studentCapacitySnapshot Int       @map("student_capacity_snapshot")
+  executedAt              DateTime  @default(now()) @map("executed_at") @db.Timestamptz
+  revertedById            String?   @map("reverted_by") @db.Uuid
+  revertedAt              DateTime? @map("reverted_at") @db.Timestamptz
+  revertReason            String?   @map("revert_reason")
+
+  event      Event       @relation(fields: [eventId], references: [id])
+  executedBy User        @relation("SelectionRunExecutedBy", fields: [executedById], references: [id])
+  revertedBy User?       @relation("SelectionRunRevertedBy", fields: [revertedById], references: [id])
+  selections Selection[]
+
+  @@map("selection_runs")
+}
+
+// source: 'RANKING' (por ranking, siempre con runId) | 'MANUAL' (RF-420 o
+// cubrir a mano un lugar liberado, ADR-009 los trata como la misma
+// operación). Entrada (RF-416/417) en la misma fila, en claro -- ver la
+// nota de entryCode más abajo, corregido 2026-09-03.
+model Selection {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  runId              String?   @map("run_id") @db.Uuid
+  source             String
+  studentId          String?   @map("student_id") @db.Uuid
+  audienceType       String    @default("ESTUDIANTE") @map("audience_type")
+  fullName           String?   @map("full_name")
+  email              String?
+  pointsAtSelection  Int?      @map("points_at_selection")
+  rankAtSelection    Int?      @map("rank_at_selection")
+  assignedById       String?   @map("assigned_by") @db.Uuid
+  reason             String?
+  // En claro, NO hasheado -- a diferencia de auth_tokens.token_hash:
+  // Historia 2 escenario 2 exige poder volver a mostrarlo vía
+  // GET /me/entry, imposible con un hash de una sola vía. Aleatorio de
+  // alta entropía igual (generateOpaqueToken()).
+  entryCode          String    @unique @map("entry_code")
+  entryUsedAt        DateTime? @map("entry_used_at") @db.Timestamptz
+  entryValidatedById String?   @map("entry_validated_by") @db.Uuid
+  revokedAt          DateTime? @map("revoked_at") @db.Timestamptz
+  revokedById        String?   @map("revoked_by") @db.Uuid
+  revokedReason      String?   @map("revoked_reason")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  run              SelectionRun?   @relation(fields: [runId], references: [id])
+  student          StudentProfile? @relation(fields: [studentId], references: [userId])
+  assignedBy       User?           @relation("SelectionAssignedBy", fields: [assignedById], references: [id])
+  entryValidatedBy User?           @relation("SelectionEntryValidatedBy", fields: [entryValidatedById], references: [id])
+  revokedBy        User?           @relation("SelectionRevokedBy", fields: [revokedById], references: [id])
+
+  @@index([runId])
+  @@index([studentId])
+  @@map("selections")
 }
