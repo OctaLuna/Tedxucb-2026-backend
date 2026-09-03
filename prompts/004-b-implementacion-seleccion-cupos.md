@@ -6,6 +6,13 @@
 (para `tasks.md` con IDs reales) y `003-d-integracion-y-pulido.md` cerrado
 (necesita el ranking real de `leaderboard` para el corte, no un mock).
 
+> **Corregido 2026-09-03:** este prompt se escribió antes de ADR-009 y
+> originalmente instruía construir invitación con plazo de confirmación,
+> lista de espera y promoción automática (RF-413 a RF-415). Ese diseño se
+> eliminó — ver `docs/decisiones/README.md`. Sigue `tasks.md` de `004-a`
+> (ya corregido, la fuente de verdad actual) como referencia de tareas,
+> no listas de RF de una versión anterior de `spec.md`.
+
 ## Skills a cargar
 
 `.claude/skills/modulo-backend/SKILL.md`, `.claude/skills/contratos-api/SKILL.md`,
@@ -24,45 +31,53 @@ mínimo).
    implementación → integración → pulido. Artículo III: sin excepción de
    test-first para la asignación de cupos, igual que para el check-in.
 3. Presta atención particular a:
-   - RF-402/408: la ejecución del corte es una acción explícita del
+   - RF-402/408: la ejecución de la selección es una acción explícita del
      administrador, nunca automática, y no puede repetirse sin reversión
      auditada — diséñala con el mismo cuidado que el ledger de puntos
-     (Artículo IV): registra qué se decidió en el Paso 2 de `004-a` sobre si
-     el corte es inmutable, y constrúyela en consecuencia.
-   - RF-404: la "fotografía" del corte (puntaje y posición congelados) debe
-     persistirse — no puede ser un cálculo derivado que cambie si el ranking
-     cambia después.
-   - RF-413/414/415: liberación automática por vencimiento y promoción
-     automática de lista de espera — usa BullMQ (ya configurado en
-     `00-bootstrap-infraestructura.md`) para los jobs programados, siguiendo
-     el mismo patrón que la reconciliación diaria de `003-b`.
-   - RF-417: entrada de un solo uso — mismo patrón de índice único +
-     verificación atómica que ya usó `003-a` para evitar doble check-in, no
-     reinventes el mecanismo.
-   - RF-422: toda ejecución, reversión, promoción y asignación manual queda
-     en auditoría (Artículo V).
+     (Artículo IV). **Resuelto en ADR-009:** la selección es inmutable
+     (sin lista de espera que reordenar); constrúyela en consecuencia.
+   - RF-404: el puntaje y la posición de cada seleccionado deben
+     persistirse en el momento de la selección — no puede ser un cálculo
+     derivado que cambie si el ranking cambia después.
+   - **RF-413 a RF-415 no aplican — eliminados (ADR-009):** sin
+     confirmación del alumno no hay plazo que venza ni lista de espera que
+     promover. Un lugar liberado solo se llena si el administrador decide
+     hacerlo a mano (`POST /selection/manual`), nunca automático — no
+     construyas ningún job de BullMQ para esto.
+   - RF-417: entrada de un solo uso — mismo patrón de `UPDATE` condicionado
+     que ya usó `002` en `applications.service.ts` (y `003-a` para evitar
+     doble check-in), no reinventes el mecanismo. El código de la entrada
+     se guarda **en claro**, no hasheado (corrección 2026-09-03,
+     `data-model.md` §3): a diferencia de un token de sesión, el alumno
+     necesita poder volver a verlo en cualquier momento vía
+     `GET /me/entry`.
+   - RF-422: toda ejecución, reversión y asignación manual queda en
+     auditoría (Artículo V).
 
 ## Pruebas y cierre
 
 Cierre estándar de `prompts/README.md`:
 
-1. Jest: contrato + integración + unitarias del/los módulo(s). Incluye
-   explícitamente una prueba de que ejecutar el corte dos veces sin
-   reversión explícita falla (RF-408), y una de concurrencia para el
-   escaneo de entrada en puerta (dos intentos simultáneos de la misma
-   entrada, exactamente uno prospera — mismo patrón que el check-in).
-2. Playwright: `tests/e2e/allocation.e2e.spec.ts` (o el nombre del módulo que
-   resulte) cubriendo al menos: ejecutar el corte → alumno seleccionado
-   recibe invitación → confirma → recibe entrada → entrada se valida en
-   puerta una vez → segundo intento de la misma entrada es rechazado.
+1. Jest: contrato + integración + unitarias del módulo `selection`
+   (`tasks.md` de `004-a` trae los IDs reales, T010-T065). Incluye
+   explícitamente una prueba de que ejecutar la selección dos veces sin
+   reversión explícita falla (RF-408, T061), y una de concurrencia real
+   para el escaneo de entrada en puerta (dos intentos simultáneos de la
+   misma entrada vía `Promise.all`, exactamente uno prospera — mismo
+   patrón que `checkin-concurrency.integration.spec.ts` de `003-a`; no
+   está enumerada aparte en `tasks.md`, agrégala igual).
+2. Playwright: `tests/e2e/selection.e2e.spec.ts` cubriendo al menos:
+   ejecutar la selección → el alumno seleccionado consulta
+   `GET /me/entry` → su entrada se valida en la puerta una vez → un
+   segundo intento de la misma entrada es rechazado. **Sin paso de
+   confirmación** (no existe, ADR-009).
    Corrige cualquier fallo antes de cerrar.
 3. Actualiza `docs/progress.md`: marca `004` con Implementación ✅ en
-   "Estado por feature" cuando todos sus módulos estén hechos — esto cierra
-   el backend completo de las 4 features.
+   "Estado por feature" — esto cierra el backend completo de las 4
+   features.
 4. Commit(s), ejemplo:
    ```
-   feat(allocation): RF-402-409 ejecución del corte con fotografía inmutable
-   feat(allocation): RF-413-415 vencimiento y promoción automática vía BullMQ
-   feat(access-control): RF-416-419 entradas de un solo uso y aforo en tiempo real
-   test(allocation): pruebas de contrato, integración y E2E del flujo de cupos
+   feat(selection): T040-T047 ejecución, reversión y asignación manual
+   feat(selection): T050-T055 entradas de un solo uso y aforo en tiempo real
+   test(selection): pruebas de contrato, integración y E2E del flujo completo
    ```
