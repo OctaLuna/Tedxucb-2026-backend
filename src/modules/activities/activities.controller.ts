@@ -44,6 +44,17 @@ export class ActivitiesController {
     return this.activitiesService.list({ page: Number(page) || 1, limit: Number(limit) || 20, status }, isAdmin);
   }
 
+  // 'metrics' ANTES que ':id' -- Nest/Express matchean por orden de
+  // registro, y ParseUUIDPipe convertiría esta ruta en un 400 si quedara
+  // después (mismo criterio que 'export' antes de ':id' en
+  // students.controller.ts, 001-d).
+  @Get('metrics')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  metrics() {
+    return this.activitiesService.getCheckinMetrics();
+  }
+
   @Get(':id')
   detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AccessTokenPayload) {
     return this.activitiesService.getById(id, user.roles.includes('ADMIN'));

@@ -62,6 +62,12 @@ export class CheckinService {
   }
 
   private async performCheckin(input: PerformCheckinInput) {
+    // T093/CE-301: solo la porción medible desde el backend -- la duración
+    // completa del criterio incluye tiempo del lado del cliente, fuera de
+    // este repositorio (ADR-006). Línea de log estructurada, no una tabla
+    // nueva (ver contracts/activities.md, sección Métricas).
+    const startedAt = Date.now();
+
     // Paso 1: identidad del alumno -- RF-122, rechaza cuenta sin verificar.
     const student = await this.prisma.user.findUnique({
       where: { id: input.studentId },
@@ -165,6 +171,8 @@ export class CheckinService {
       .catch((error: Error) => this.logger.warn(`No se pudo encolar la notificación de check-in: ${error.message}`));
 
     const updatedStudent = await this.prisma.studentProfile.findUniqueOrThrow({ where: { userId: input.studentId } });
+
+    this.logger.log(`check-in ${input.method} completado en ${Date.now() - startedAt}ms (actividad ${input.activityId})`);
 
     return {
       attendanceId: attendance.id,

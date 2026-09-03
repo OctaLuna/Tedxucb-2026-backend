@@ -231,6 +231,15 @@ export class ActivitiesService {
     });
   }
 
+  /** T093, CE-304: proporción de registros manuales frente a escaneados. */
+  async getCheckinMetrics(): Promise<{ totalCheckins: number; manualCheckins: number; manualRatio: number }> {
+    const [totalCheckins, manualCheckins] = await Promise.all([
+      this.prisma.attendance.count({ where: { status: { not: 'REJECTED' } } }),
+      this.prisma.attendance.count({ where: { status: { not: 'REJECTED' }, method: 'MANUAL' } }),
+    ]);
+    return { totalCheckins, manualCheckins, manualRatio: totalCheckins > 0 ? manualCheckins / totalCheckins : 0 };
+  }
+
   private assertTransition(current: ActivityStatus, next: ActivityStatus): void {
     if (!VALID_ACTIVITY_TRANSITIONS[current]?.includes(next)) {
       throw new AppException(409, 'INVALID_STATUS_TRANSITION', `No se puede pasar de ${current} a ${next}.`);
