@@ -128,6 +128,14 @@ motor, no por confianza en la lógica de aplicación.
 accede al ranking completo (RF-342, **resuelto 2026-09-02:** visible para
 todos, no solo la posición propia).
 
+`limit` es opcional, por defecto `50`, con un máximo de `500` aplicado en el
+servidor (skill `contratos-api`: todo listado con límite lo define y aplica
+el servidor, nunca el cliente). `career`/`faculty` filtran por id; un id que
+no coincide con ningún alumno activo devuelve `data: []`, no un error. A
+diferencia del resto de listados de esta API, **no es paginado** (`meta` no
+lleva `page`/`totalPages`): es un top-N configurable por `limit`, no una
+lista que se recorra completa por páginas.
+
 ```json
 {
   "data": [
@@ -142,7 +150,16 @@ determinista: precede quien alcanzó el puntaje primero (RF-339).
 
 ### `GET /api/v1/leaderboard/export` — rol `ADMIN`
 
-Devuelve el ranking en formato tabular abierto (RF-341).
+Devuelve el ranking completo (sin el límite de 50/500 del endpoint
+anterior; el filtro `career`/`faculty` sí aplica) en CSV con BOM UTF-8,
+columnas `"Posición","Código","Nombre","Carrera","Facultad","Puntos"` (cada
+campo entre comillas) — mismo formato que ya usa `GET /students/export` de
+`profiles` (001-d). Acceso masivo al padrón: queda auditado
+(`LEADERBOARD_EXPORTED`, skill `seguridad-y-roles`).
+
+| Código | `error` | Cuándo | (añadido 2026-09-02) |
+|---|---|---|---|
+| `403` | `FORBIDDEN` | El solicitante no es administrador. | |
 
 ---
 

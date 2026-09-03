@@ -201,3 +201,30 @@ actividades ya creadas al definir una nueva, vía el catálogo de arriba).
 ### `PATCH /api/v1/activity-categories/:id`
 
 Edita `name`/`color`/`suggestedPoints`. Mismos modos de fallo que `POST`.
+
+---
+
+## Métricas (solo `ADMIN`)
+
+> Añadido 2026-09-02, T093, al ejecutar `003-c` — CE-301 y CE-304 de
+> `spec.md`. No hay infraestructura de métricas en este proyecto (sin
+> Prometheus/StatsD); en vez de construirla para dos números, esta sección
+> expone lo mínimo verificable con lo que ya existe.
+
+### `GET /api/v1/activities/metrics`
+
+```json
+{ "totalCheckins": 812, "manualCheckins": 14, "manualRatio": 0.017 }
+```
+
+`manualRatio` cumple CE-304 (menos del 5% por vía manual — un valor alto
+indica que el escaneo no está funcionando en campo). **CE-301 (latencia
+desde que el staff abre el escáner hasta la confirmación en pantalla) no
+es enteramente medible desde el backend** — incluye tiempo del lado del
+cliente, fuera de este repositorio (ADR-006). La contribución del backend
+(duración del `POST .../checkin` en sí) queda como línea de log
+estructurada en cada check-in, no como este endpoint ni como una tabla
+nueva: no existe hoy infraestructura de agregación de logs en este
+proyecto, y construir una tabla de métricas solo para un p95 es
+exactamente el tipo de anticipación que el Artículo VII prohíbe. Si el
+evento revela que hace falta, se reabre con su propio ciclo de spec.
