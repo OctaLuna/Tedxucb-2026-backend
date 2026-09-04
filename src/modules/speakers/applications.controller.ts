@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ApplicationsService } from './applications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -19,6 +20,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AccessTokenPayload } from '../auth/token-pair.service';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 
+@ApiTags('speakers')
+@ApiBearerAuth()
 @Controller('applications')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')

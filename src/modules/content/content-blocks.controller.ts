@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ContentBlocksService } from './content-blocks.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -11,6 +12,7 @@ import { CreateContentBlockDto } from './dto/create-content-block.dto';
 import { UpdateContentBlockDto } from './dto/update-content-block.dto';
 
 /** GET público (RateLimitGuard, no requiere sesión); POST/PATCH exclusivo ADMIN. */
+@ApiTags('content')
 @Controller('content-blocks')
 @UseGuards(RateLimitGuard)
 export class ContentBlocksController {

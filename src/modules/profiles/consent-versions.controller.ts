@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ConsentVersionsService } from './consent-versions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -7,6 +8,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AccessTokenPayload } from '../auth/token-pair.service';
 import { CreateConsentVersionDto } from './dto/create-consent-version.dto';
 
+@ApiTags('profiles')
+@ApiBearerAuth()
 @Controller('consent-versions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')

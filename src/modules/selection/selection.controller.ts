@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Header, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SelectionService } from './selection.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -9,6 +10,8 @@ import { ManualSelectionDto } from './dto/manual-selection.dto';
 import { ReasonDto } from './dto/reason.dto';
 
 /** RF-402 a RF-423 (tras ADR-009): todo exclusivo ADMIN. */
+@ApiTags('selection')
+@ApiBearerAuth()
 @Controller('selection')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')

@@ -13,6 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { EventsService } from './events.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -24,6 +25,8 @@ import { UpdateEventDto } from './dto/update-event.dto';
 import { EVENT_IMAGE_MAX_BYTES } from './content.constants';
 
 /** Sin POST (crear) ni DELETE: la fila nace por semilla (data-model.md §6). */
+@ApiTags('content')
+@ApiBearerAuth()
 @Controller('events')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')

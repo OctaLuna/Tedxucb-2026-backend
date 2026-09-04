@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { EntriesService } from './entries.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -7,6 +8,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AccessTokenPayload } from '../auth/token-pair.service';
 import { ScanEntryDto } from './dto/scan-entry.dto';
 
+@ApiTags('selection')
+@ApiBearerAuth()
 @Controller('entries')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class EntriesController {

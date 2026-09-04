@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CorrectionRequestsService } from './correction-requests.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -7,6 +8,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AccessTokenPayload } from '../auth/token-pair.service';
 import { ResolveCorrectionRequestDto } from './dto/resolve-correction-request.dto';
 
+@ApiTags('users')
+@ApiBearerAuth()
 @Controller('correction-requests')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')

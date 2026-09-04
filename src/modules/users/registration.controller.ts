@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { RegistrationService } from './registration.service';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { RateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
@@ -6,6 +7,7 @@ import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 
 /** Mismo prefijo /auth que auth.controller.ts (módulo distinto, sin colisión de rutas). */
+@ApiTags('auth')
 @Controller('auth')
 @UseGuards(RateLimitGuard)
 export class RegistrationController {

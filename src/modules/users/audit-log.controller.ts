@@ -1,10 +1,13 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
 /** RF-117. Acceso masivo a actividad de todas las cuentas -- exclusivo ADMIN. */
+@ApiTags('users')
+@ApiBearerAuth()
 @Controller('audit-log')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')

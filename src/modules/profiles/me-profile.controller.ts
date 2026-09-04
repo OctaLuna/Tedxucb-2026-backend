@@ -11,6 +11,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { ProfileService } from './profile.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -19,6 +20,8 @@ import type { AccessTokenPayload } from '../auth/token-pair.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { AVATAR_MAX_BYTES } from './profiles.constants';
 
+@ApiTags('profiles')
+@ApiBearerAuth()
 @Controller('me')
 @UseGuards(JwtAuthGuard)
 export class MeProfileController {

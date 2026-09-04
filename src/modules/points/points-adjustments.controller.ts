@@ -1,4 +1,5 @@
 import { Body, Controller, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PointsAdjustmentsService } from './points-adjustments.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -9,6 +10,8 @@ import { CreatePointAdjustmentDto } from './dto/create-adjustment.dto';
 import { ReverseTransactionDto } from './dto/reverse-transaction.dto';
 
 /** RF-330, RF-331: correcciones administrativas, siempre con motivo. Nunca accesible a STAFF. */
+@ApiTags('points')
+@ApiBearerAuth()
 @Controller('points')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -17,6 +18,8 @@ import { RejectRegistrationDto } from './dto/reject-registration.dto';
  * no quede eclipsado por un ':id' registrado antes; revisar el orden de
  * imports en users.module.ts / profiles.module.ts si se mueve algo de sitio.
  */
+@ApiTags('users')
+@ApiBearerAuth()
 @Controller('students')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')

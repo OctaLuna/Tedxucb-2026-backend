@@ -1,4 +1,5 @@
 import { Controller, Get, Header, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { StudentsService } from './students.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -21,6 +22,8 @@ import type { AccessTokenPayload } from '../auth/token-pair.service';
  * Una prueba de integración cubre que /students/pending sigue
  * respondiendo lo de `users` (ver tests/integration/profiles-routing...).
  */
+@ApiTags('profiles')
+@ApiBearerAuth()
 @Controller('students')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')

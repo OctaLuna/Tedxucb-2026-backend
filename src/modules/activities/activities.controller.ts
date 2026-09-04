@@ -12,6 +12,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ActivitiesService } from './activities.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -28,6 +29,8 @@ import { AssignStaffDto } from './dto/assign-staff.dto';
  * solo ADMIN -- por eso el guard de clase es solo JwtAuthGuard, y
  * RolesGuard+@Roles('ADMIN') se agregan por método en las mutaciones.
  */
+@ApiTags('activities')
+@ApiBearerAuth()
 @Controller('activities')
 @UseGuards(JwtAuthGuard)
 export class ActivitiesController {

@@ -1,4 +1,5 @@
 import { Controller, Get, Header, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { LeaderboardService } from './leaderboard.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -8,6 +9,8 @@ import type { AccessTokenPayload } from '../auth/token-pair.service';
 import { LeaderboardQueryDto } from './dto/leaderboard-query.dto';
 
 /** RF-342 resuelto 2026-09-02: visible a cualquier autenticado, no solo ADMIN/STAFF. */
+@ApiTags('leaderboard')
+@ApiBearerAuth()
 @Controller('leaderboard')
 @UseGuards(JwtAuthGuard)
 export class LeaderboardController {

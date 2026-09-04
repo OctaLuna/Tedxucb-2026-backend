@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Ip, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CheckinService } from './checkin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -15,6 +16,8 @@ import { ManualCheckinDto } from './dto/manual-checkin.dto';
  * que ni siquiera tiene el rol). RateLimitGuard/T100 (límite diferenciado
  * de check-in, picos legítimos vs. spam) queda para el pulido del Grupo 9.
  */
+@ApiTags('activities')
+@ApiBearerAuth()
 @Controller('activities')
 @UseGuards(JwtAuthGuard, RolesGuard, ActivityStaffGuard)
 @Roles('STAFF', 'ADMIN')

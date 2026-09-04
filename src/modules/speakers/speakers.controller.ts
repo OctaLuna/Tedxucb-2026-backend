@@ -14,6 +14,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { SpeakersService } from './speakers.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -27,6 +28,8 @@ import { ReorderSpeakersDto } from './dto/reorder-speakers.dto';
 import { SPEAKER_PHOTO_MAX_BYTES } from './speakers.constants';
 
 /** Sin DELETE: un speaker se despublica (PATCH status:"DRAFT"), nunca se borra. */
+@ApiTags('speakers')
+@ApiBearerAuth()
 @Controller('speakers')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')
