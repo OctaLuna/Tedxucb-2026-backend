@@ -45,6 +45,67 @@ _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
 
+### 2026-09-04 — Swagger/OpenAPI y prueba manual de todos los endpoints
+
+Fuera de la cadena de `prompts/` (que terminó en `004-b`): pedido directo
+de conectar el frontend a la API. Dos partes.
+
+**Swagger, revirtiendo `003-d` (T101).** En ese momento decidí no generar
+OpenAPI porque ningún módulo lo consumía y sería infraestructura aislada
+para un solo prompt de pulido. Ahora el equipo de frontend lo pide para
+explorar y probar la API sin leer `contracts/*.md` a mano — la razón que
+faltaba entonces. Plugin de CLI de `@nestjs/swagger` (infiere esquemas de
+cada DTO desde `class-validator`, sin `@ApiProperty()` manual), montado en
+`/api/docs` fuera de `/api/v1`, `@ApiTags`/`@ApiBearerAuth` en los 33
+controladores. Límite documentado: las respuestas compuestas ad-hoc (p. ej.
+check-in) aparecen como objetos genéricos — `contracts/*.md` sigue siendo
+la fuente exacta.
+
+**Prueba manual de los ~82 endpoints**, contra el servidor real
+(Postgres/Redis/Mailpit reales, camino feliz — los modos de fallo ya están
+cubiertos por las 325 pruebas automatizadas). Encontró tres bugs reales,
+ninguno hipotético:
+
+- **`POST /users/:id/disable` devolvía 500** al deshabilitar una cuenta
+  `INVITED` (creada por `POST /users`, sin `password_hash` porque nunca
+  aceptó su invitación) — el `CHECK password_required_unless_invited`
+  exigía contraseña para cualquier estado salvo `INVITED`, sin prever que
+  `DISABLED` también puede llegar sin contraseña. El contrato no
+  documentaba excepción alguna: revocar una invitación no aceptada es el
+  caso de uso obvio. Corregido con una migración nueva (relaja el `CHECK`
+  a `status IN ('INVITED','DISABLED') OR password_hash IS NOT NULL`);
+  `disable`/`enable` ahora comprueban existencia primero (mismo patrón que
+  el bug de `activity-categories` en `003-d`: faltaba en dos endpoints
+  más), y `enable` rechaza con `409 INVITATION_NOT_ACCEPTED` si la cuenta
+  nunca puso contraseña — forzarla a `ACTIVE` la dejaría sin forma de
+  autenticarse.
+- **`entries.contract.spec.ts` y `auth-accept-invitation.contract.spec.ts`
+  fallaban de forma intermitente** al correr la suite completa varias
+  veces seguidas: el primero por interferencia real de correr Jest,
+  Playwright y pruebas manuales con `curl` a la vez contra la misma base
+  compartida (deadlocks, violaciones de FK) — no un bug de producto, sino
+  el costo de haber estado probando manualmente mientras la suite corría;
+  confirmado con una corrida aislada y limpia. El segundo sí era un bug de
+  prueba real: `seedInvitation` calculaba `createdAt`/`expiresAt` con dos
+  `Date.now()` separados, y bajo carga (~300s de suite) podían caer en
+  milisegundos distintos y violar `valid_expiry_window` por un pelo —
+  corregido derivando ambas fechas de un solo `Date.now()`.
+- **`nest start` no recarga en caliente**: el primer intento de reproducir
+  el fallo de `disable` pareció inconsistente entre corridas porque el
+  servidor de desarrollo seguía sirviendo el binario compilado antes del
+  arreglo — recordatorio para cualquier verificación manual futura contra
+  `npm run start`, reiniciar tras cada cambio de código.
+
+Swagger (`/api/docs`, `/api/docs-json`) verificado con 76 rutas, los 11
+tags esperados y el esquema `bearer` configurado. Los ~82 endpoints
+probados a mano, cero fallas al cierre.
+
+- Jest: 325/325 (322 previos + 3 nuevas en `users-crud-roles.contract.spec.ts`
+  cubriendo los tres modos de fallo encontrados).
+- Playwright: 19/19, sin cambios de código de producto en E2E.
+- Commits: `e3aa7a7` (Swagger/OpenAPI), `bcdc449` (fix `disable`/`enable`),
+  `affe611` (fix de flakiness en `seedInvitation`).
+
 ### 2026-09-03 — `004-b-implementacion-seleccion-cupos` (módulo `selection`) — `004` y el backend completos
 
 Última pieza del backend. **Quinta y última ronda de implementación —
