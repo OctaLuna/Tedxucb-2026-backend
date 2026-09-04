@@ -10,11 +10,15 @@ async function seedInvitation(userId: string, adminId: string, overrides: { expi
   const token = generateOpaqueToken();
   // El CHECK valid_expiry_window exige expires_at > created_at y
   // expires_at <= created_at + 7 días: para simular un token vencido hay
-  // que retrasar ambas fechas, no solo expires_at.
-  const createdAt = overrides.expired ? new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) : new Date();
+  // que retrasar ambas fechas, no solo expires_at. Ambas se derivan de UN
+  // solo Date.now() -- dos llamadas separadas pueden caer en milisegundos
+  // distintos bajo carga y violar el límite superior por un pelo (bug real
+  // de flakiness detectado en la prueba manual de endpoints, 2026-09-04).
+  const now = Date.now();
+  const createdAt = overrides.expired ? new Date(now - 8 * 24 * 60 * 60 * 1000) : new Date(now);
   const expiresAt = overrides.expired
-    ? new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
-    : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    ? new Date(now - 2 * 24 * 60 * 60 * 1000)
+    : new Date(now + 7 * 24 * 60 * 60 * 1000);
 
   await prismaTestClient.authToken.create({
     data: {
