@@ -46,10 +46,23 @@ Edición de identidad básica (`fullName`) por el admin. No permite cambiar
 ## `POST /api/v1/users/:id/disable`, `POST /api/v1/users/:id/enable`
 
 RF-103, RF-118. Deshabilitar preserva íntegro el historial (nunca se borra).
+`disable` funciona sobre cualquier estado, incluida una invitación (`INVITED`)
+que nunca fue aceptada — es la forma de revocarla.
 
 | Código | `error` | Cuándo |
 |---|---|---|
+| `404` | `NOT_FOUND` | El id no corresponde a ningún usuario. |
 | `409` | `LAST_ADMIN_STANDING` | Intento de deshabilitar al único administrador activo (RF-119) — el trigger `no_disable_last_admin` de `data-model.md` lo rechaza a nivel de motor; el servicio traduce la excepción a este código. |
+| `409` | `INVITATION_NOT_ACCEPTED` | Solo en `enable`: la cuenta nunca aceptó su invitación (sin `password_hash`), así que no puede pasar a `ACTIVE` — no hay con qué autenticarse. |
+
+**Corrección 2026-09-04:** en la implementación original, `disable` sobre una
+cuenta `INVITED` (sin contraseña aún) devolvía `500` — el `CHECK
+password_required_unless_invited` del esquema exigía contraseña para
+cualquier estado salvo `INVITED`, sin prever que `DISABLED` también puede
+llegar sin contraseña (revocar una invitación no aceptada). Se corrigió el
+`CHECK` para permitir `DISABLED` sin contraseña, y ambos endpoints ahora
+verifican existencia antes de operar (bug real detectado en la prueba manual
+de endpoints, no un caso hipotético).
 
 ## `POST /api/v1/users/:id/roles`, `DELETE /api/v1/users/:id/roles/:role`
 

@@ -117,6 +117,7 @@ export class UsersService {
 
   /** RF-103, RF-118. RF-119 (nunca sin admin activo) lo garantiza el trigger de la migración. */
   async disableUser(id: string, actorId: string): Promise<UserSummary> {
+    await this.getUser(id);
     const user = await this.updateStatusOrMapLastAdmin(id, UserStatus.DISABLED);
     await this.prisma.auditLog.create({
       data: { actorId, action: 'USER_DISABLED', entityType: 'user', entityId: id },
@@ -125,6 +126,18 @@ export class UsersService {
   }
 
   async enableUser(id: string, actorId: string): Promise<UserSummary> {
+    const existing = await this.prisma.user.findUnique({ where: { id } });
+    if (!existing) {
+      throw new AppException(404, 'NOT_FOUND', 'Usuario no encontrado.');
+    }
+    if (!existing.passwordHash) {
+      throw new AppException(
+        409,
+        'INVITATION_NOT_ACCEPTED',
+        'No se puede activar: el usuario todavía no aceptó su invitación ni estableció una contraseña.',
+      );
+    }
+
     const user = await this.prisma.user.update({
       where: { id },
       data: { status: UserStatus.ACTIVE },

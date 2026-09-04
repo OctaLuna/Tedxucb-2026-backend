@@ -130,4 +130,60 @@ describe('Usuarios, roles y última administración (contrato)', () => {
     const stillThere = await prismaTestClient.user.findUnique({ where: { id: staff.id } });
     expect(stillThere).not.toBeNull();
   });
+
+  it('permite deshabilitar una invitación (INVITED) nunca aceptada, sin contraseña', async () => {
+    const admin = await seedUser({ email: 'admin-revoca@ucb.edu.bo', roles: ['ADMIN'] });
+    const token = await loginAs(app, admin.email);
+
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ fullName: 'Invitado Sin Aceptar', email: 'invitado-sin-aceptar@ucb.edu.bo', roles: ['STAFF'] });
+    expect(created.body.status).toBe('INVITED');
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/users/${created.body.id}/disable`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('DISABLED');
+  });
+
+  it('rechaza con 409 INVITATION_NOT_ACCEPTED activar una invitación deshabilitada sin contraseña', async () => {
+    const admin = await seedUser({ email: 'admin-reactiva@ucb.edu.bo', roles: ['ADMIN'] });
+    const token = await loginAs(app, admin.email);
+
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ fullName: 'Invitado A Reactivar', email: 'invitado-a-reactivar@ucb.edu.bo', roles: ['STAFF'] });
+    await request(app.getHttpServer())
+      .post(`/api/v1/users/${created.body.id}/disable`)
+      .set('Authorization', `Bearer ${token}`);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/users/${created.body.id}/enable`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe('INVITATION_NOT_ACCEPTED');
+  });
+
+  it('responde 404 NOT_FOUND al deshabilitar o activar un id inexistente', async () => {
+    const admin = await seedUser({ email: 'admin-404@ucb.edu.bo', roles: ['ADMIN'] });
+    const token = await loginAs(app, admin.email);
+    const fakeId = '00000000-0000-0000-0000-000000000000';
+
+    const disableResponse = await request(app.getHttpServer())
+      .post(`/api/v1/users/${fakeId}/disable`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(disableResponse.status).toBe(404);
+    expect(disableResponse.body.error).toBe('NOT_FOUND');
+
+    const enableResponse = await request(app.getHttpServer())
+      .post(`/api/v1/users/${fakeId}/enable`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(enableResponse.status).toBe(404);
+    expect(enableResponse.body.error).toBe('NOT_FOUND');
+  });
 });
