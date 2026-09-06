@@ -1,9 +1,40 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import * as argon2 from 'argon2';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
+
+/**
+ * Admin de desarrollo -- sin esto no hay forma de entrar al panel ni de
+ * invitar al resto del staff, porque ADMIN/STAFF no tienen auto-registro
+ * (solo los alumnos, ver GUIA-FRONTEND.md). Nunca contra producción: una
+ * contraseña conocida sembrada en una base real es una cuenta comprometida
+ * desde el día 1.
+ */
+async function seedDefaultAdmin(): Promise<void> {
+  if (process.env.NODE_ENV === 'production') {
+    console.log('NODE_ENV=production: se omite el admin de desarrollo.');
+    return;
+  }
+
+  const email = 'admin@tedxucb.local';
+  const alreadyExists = await prisma.user.findUnique({ where: { email } });
+  if (alreadyExists) return;
+
+  const passwordHash = await argon2.hash('unaClaveSegura9', { type: argon2.argon2id });
+  await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+      fullName: 'Admin de Desarrollo',
+      status: 'ACTIVE',
+      registrationSource: 'ADMIN_CREATED',
+      roles: { create: [{ role: 'ADMIN' }] },
+    },
+  });
+}
 
 /**
  * Facultades/carreras de PRUEBA — a diferencia de las categorías de
@@ -98,6 +129,7 @@ async function seedContentBlocks(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await seedDefaultAdmin();
   await seedTestCatalog();
   await seedPlaceholderConsentVersion();
   await seedEvent();
