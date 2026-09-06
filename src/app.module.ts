@@ -1,9 +1,7 @@
 import { Module, ValidationPipe } from '@nestjs/common';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { BullModule } from '@nestjs/bullmq';
+import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from './config/env.validation';
-import type { EnvConfig } from './config/env.validation';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -24,18 +22,6 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
       isGlobal: true,
       validate: validateEnv,
     }),
-    // Conexión de BullMQ compartida por toda la app (una sola vez, acá) --
-    // promovida desde mail.module.ts cuando points (003-b) necesitó su
-    // propia cola de reconciliación: cada módulo con cola propia solo
-    // registra BullModule.registerQueue({name}) sobre esta conexión, nunca
-    // un forRootAsync propio (ver comentario histórico en mail.module.ts).
-    BullModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService<EnvConfig, true>) => ({
-        connection: { url: config.get('REDIS_URL', { infer: true }) },
-      }),
-    }),
     PrismaModule,
     RedisModule,
     HealthModule,
@@ -51,8 +37,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
     ContentModule,
     // SpeakersModule: rutas nuevas ('public/speakers', 'public/applications',
     // 'speakers', 'applications'), sin colisión con nada existente. Arrastra
-    // MailModule (BullMQ) al árbol de módulos, así que createTestApp()
-    // también levanta su Worker de verdad en las pruebas.
+    // MailModule al árbol de módulos.
     SpeakersModule,
     // ActivitiesModule: rutas nuevas ('activities', 'activity-categories'),
     // más 'me/qr' (MeQrController) -- sin colisión con 'me/profile'/'me/avatar'
