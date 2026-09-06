@@ -1,14 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { fileTypeFromBuffer } from 'file-type';
-import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
-import * as path from 'node:path';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AppException } from '../../common/exceptions/app.exception';
 import { isUniqueConstraintViolation } from '../../common/utils/prisma-error.util';
-import type { EnvConfig } from '../../config/env.validation';
-import { ALLOWED_EVENT_IMAGE_MIME_TYPES } from './content.constants';
+import { UploadService } from '../../common/upload/upload.service';
 import { UpdateEventDto } from './dto/update-event.dto';
 
 export interface UploadedEventImageFile {
@@ -19,7 +13,7 @@ export interface UploadedEventImageFile {
 export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly uploadService: UploadService,
   ) {}
 
   /**
@@ -97,10 +91,9 @@ export class EventsService {
   }
 
   /**
-   * Mismo patrón que ProfileService.updateAvatar: file-type contra el
-   * allowlist real (nunca el mimetype del cliente), UUID + extensión
-   * detectada como nombre de archivo, sin recorte del lado del servidor
-   * (ver plan.md de 002: el encuadre de grilla lo resuelve el frontend).
+   * Mismo patrón que ProfileService.updateAvatar, vía el UploadService
+   * compartido (sin recorte del lado del servidor -- ver plan.md de 002:
+   * el encuadre de grilla lo resuelve el frontend).
    */
   async updateImage(
     id: string,
@@ -109,26 +102,7 @@ export class EventsService {
   ): Promise<{ imageUrl: string }> {
     await this.getById(id);
 
-    if (!file || !file.buffer || file.buffer.length === 0) {
-      throw new AppException(422, 'INVALID_IMAGE', 'No se recibió ningún archivo.');
-    }
-
-    const detected = await fileTypeFromBuffer(file.buffer);
-    if (!detected || !ALLOWED_EVENT_IMAGE_MIME_TYPES.has(detected.mime)) {
-      throw new AppException(
-        422,
-        'INVALID_IMAGE',
-        'El archivo no es una imagen válida en un formato admitido.',
-      );
-    }
-
-    const uploadDir = path.resolve(this.config.get('EVENT_IMAGE_UPLOAD_DIR', { infer: true }));
-    await mkdir(uploadDir, { recursive: true });
-
-    const filename = `${randomUUID()}.${detected.ext}`;
-    await writeFile(path.join(uploadDir, filename), file.buffer);
-
-    const imageUrl = `/uploads/events/${filename}`;
+    const imageUrl = await this.uploadService.upload('events', file?.buffer);
     await this.prisma.event.update({ where: { id }, data: { imageUrl, updatedById: actorId } });
     await this.prisma.auditLog.create({
       data: { actorId, action: 'EVENT_IMAGE_UPDATED', entityType: 'event', entityId: id, detail: { imageUrl } },

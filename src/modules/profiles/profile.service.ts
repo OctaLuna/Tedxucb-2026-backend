@@ -1,15 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { fileTypeFromBuffer } from 'file-type';
-import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
-import * as path from 'node:path';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AppException } from '../../common/exceptions/app.exception';
 import { isUniqueConstraintViolation } from '../../common/utils/prisma-error.util';
+import { UploadService } from '../../common/upload/upload.service';
 import { UserStatus } from '../auth/auth.constants';
-import type { EnvConfig } from '../../config/env.validation';
-import { ALLOWED_AVATAR_MIME_TYPES } from './profiles.constants';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 export interface UploadedAvatarFile {
@@ -20,7 +14,7 @@ export interface UploadedAvatarFile {
 export class ProfileService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly uploadService: UploadService,
   ) {}
 
   async getMyProfile(userId: string) {
@@ -99,34 +93,14 @@ export class ProfileService {
   }
 
   /**
-   * Valida el tipo REAL del archivo con file-type (nunca el mimetype que
-   * manda el cliente) antes de escribir a disco. Un archivo inválido no
-   * debe alterar el avatar existente -- por eso toda la validación ocurre
-   * antes de tocar la fila en la base o el disco.
+   * Validación real del archivo (tipo por bytes, no mimetype del cliente)
+   * y subida a Vercel Blob viven en UploadService, compartido con
+   * content/events y speakers -- un archivo inválido no debe alterar el
+   * avatar existente, por eso updateAvatar solo toca la fila si upload()
+   * no lanzó.
    */
   async updateAvatar(userId: string, file: UploadedAvatarFile | undefined): Promise<{ avatarUrl: string }> {
-    if (!file || !file.buffer || file.buffer.length === 0) {
-      throw new AppException(422, 'INVALID_IMAGE', 'No se recibió ningún archivo.');
-    }
-
-    const detected = await fileTypeFromBuffer(file.buffer);
-    if (!detected || !ALLOWED_AVATAR_MIME_TYPES.has(detected.mime)) {
-      throw new AppException(
-        422,
-        'INVALID_IMAGE',
-        'El archivo no es una imagen válida en un formato admitido.',
-      );
-    }
-
-    const uploadDir = path.resolve(this.config.get('AVATAR_UPLOAD_DIR', { infer: true }));
-    await mkdir(uploadDir, { recursive: true });
-
-    // Nunca el nombre original (skill seguridad-y-roles): UUID + extensión
-    // real detectada por file-type, no la del archivo subido.
-    const filename = `${randomUUID()}.${detected.ext}`;
-    await writeFile(path.join(uploadDir, filename), file.buffer);
-
-    const avatarUrl = `/uploads/avatars/${filename}`;
+    const avatarUrl = await this.uploadService.upload('avatars', file?.buffer);
     await this.prisma.studentProfile.update({ where: { userId }, data: { avatarUrl } });
 
     return { avatarUrl };

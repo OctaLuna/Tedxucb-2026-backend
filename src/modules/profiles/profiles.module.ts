@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { UploadModule } from '../../common/upload/upload.module';
 import { MeProfileController } from './me-profile.controller';
 import { StudentsController } from './students.controller';
 import { FacultiesController } from './faculties.controller';
@@ -12,7 +13,7 @@ import { CatalogService } from './catalog.service';
 import { ConsentVersionsService } from './consent-versions.service';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, UploadModule],
   controllers: [
     MeProfileController,
     StudentsController,

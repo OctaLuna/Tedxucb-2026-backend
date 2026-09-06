@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { MailModule } from '../../common/mail/mail.module';
+import { UploadModule } from '../../common/upload/upload.module';
 import { PublicSpeakersController } from './public-speakers.controller';
 import { SpeakersController } from './speakers.controller';
 import { PublicApplicationsController } from './public-applications.controller';
@@ -9,7 +10,7 @@ import { SpeakersService } from './speakers.service';
 import { ApplicationsService } from './applications.service';
 
 @Module({
-  imports: [AuthModule, MailModule],
+  imports: [AuthModule, MailModule, UploadModule],
   controllers: [PublicSpeakersController, SpeakersController, PublicApplicationsController, ApplicationsController],
   providers: [SpeakersService, ApplicationsService],
 })

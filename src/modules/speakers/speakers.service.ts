@@ -1,16 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { fileTypeFromBuffer } from 'file-type';
-import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
-import * as path from 'node:path';
 import type { Speaker } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AppException } from '../../common/exceptions/app.exception';
 import { isUniqueConstraintViolation } from '../../common/utils/prisma-error.util';
-import type { EnvConfig } from '../../config/env.validation';
+import { UploadService } from '../../common/upload/upload.service';
 import type { PaginatedResult } from '../users/users.service';
-import { ALLOWED_SPEAKER_PHOTO_MIME_TYPES } from './speakers.constants';
 import { CreateSpeakerDto } from './dto/create-speaker.dto';
 import { UpdateSpeakerDto } from './dto/update-speaker.dto';
 
@@ -29,7 +23,7 @@ const REQUIRED_TO_PUBLISH = ['headline', 'bio', 'talkTitle', 'photoUrl', 'photoA
 export class SpeakersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly uploadService: UploadService,
   ) {}
 
   /** RF-207/RF-208: solo PUBLISHED, ordenados. Sin paginar (colección acotada). */
@@ -136,7 +130,7 @@ export class SpeakersService {
     }
   }
 
-  /** Mismo patrón exacto que EventsService.updateImage/ProfileService.updateAvatar. */
+  /** Mismo patrón exacto que EventsService.updateImage/ProfileService.updateAvatar, vía UploadService. */
   async updatePhoto(
     id: string,
     file: UploadedSpeakerPhotoFile | undefined,
@@ -144,24 +138,7 @@ export class SpeakersService {
   ): Promise<{ photoUrl: string }> {
     await this.getById(id); // 404 si no existe
 
-    if (!file || !file.buffer || file.buffer.length === 0) {
-      throw new AppException(422, 'INVALID_IMAGE', 'No se recibió ningún archivo.');
-    }
-    const detected = await fileTypeFromBuffer(file.buffer);
-    if (!detected || !ALLOWED_SPEAKER_PHOTO_MIME_TYPES.has(detected.mime)) {
-      throw new AppException(
-        422,
-        'INVALID_IMAGE',
-        'El archivo no es una imagen válida en un formato admitido.',
-      );
-    }
-
-    const uploadDir = path.resolve(this.config.get('SPEAKER_PHOTO_UPLOAD_DIR', { infer: true }));
-    await mkdir(uploadDir, { recursive: true });
-    const filename = `${randomUUID()}.${detected.ext}`;
-    await writeFile(path.join(uploadDir, filename), file.buffer);
-
-    const photoUrl = `/uploads/speakers/${filename}`;
+    const photoUrl = await this.uploadService.upload('speakers', file?.buffer);
     await this.prisma.speaker.update({ where: { id }, data: { photoUrl } });
     await this.prisma.auditLog.create({
       data: { actorId, action: 'SPEAKER_PHOTO_UPDATED', entityType: 'speaker', entityId: id, detail: { photoUrl } },
