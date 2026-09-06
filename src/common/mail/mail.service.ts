@@ -87,8 +87,14 @@ export class MailService {
    * de vuelta a POST /internal/mail/send -- reemplaza al worker
    * persistente de BullMQ. En desarrollo/pruebas (sin QStash, contra
    * Mailpit local) se envía directo sin esperar la respuesta
-   * (fire-and-forget): mismo principio de siempre, un fallo de SMTP no
-   * debe bloquear ni fallar la petición que disparó el correo.
+   * bloquear ni fallar la petición que disparó el correo (se atrapa el
+   * error, nunca se relanza) -- pero SÍ se espera (`await`, no
+   * fire-and-forget): en un runtime serverless la función puede
+   * congelarse apenas se envía la respuesta, y una promesa disparada sin
+   * esperar podría no llegar a completarse nunca (bug real: la primera
+   * versión de este método no esperaba, y en Vercel sin QStash
+   * configurado el correo simplemente no se enviaba). En un servidor
+   * tradicional (dev/pruebas) esperar no cambia nada observable.
    */
   private async dispatch(jobName: MailJobName, payload: MailJobPayload): Promise<void> {
     if (this.qstash && this.publicUrl) {
@@ -96,11 +102,13 @@ export class MailService {
       return;
     }
 
-    void this.send(jobName, payload).catch((error) => {
+    try {
+      await this.send(jobName, payload);
+    } catch (error) {
       this.logger.error(
         `No se pudo enviar el correo '${jobName}': ${error instanceof Error ? error.message : String(error)}`,
       );
-    });
+    }
   }
 
   /** Invocado directamente en local/pruebas, o desde el webhook de QStash en producción. */
