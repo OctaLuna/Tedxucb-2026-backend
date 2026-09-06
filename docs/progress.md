@@ -45,6 +45,73 @@ _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
 
+### 2026-09-06 — Preparación para desplegar en Vercel + Supabase
+
+Fuera de la cadena de `prompts/`, igual que la entrada anterior: pedido
+directo de desplegar el backend con Vercel CLI. El monolito tenía tres
+dependencias de infraestructura con estado, incompatibles con funciones
+serverless sin estado y de corta duración: disco local para subidas
+(efímero fuera de `/tmp`), un worker persistente de BullMQ (correos y
+reconciliación diaria) y ninguna base de datos administrada. Se optó por
+avisar del choque de arquitectura y preguntar antes de tocar código —
+"no adivines" — en vez de correr `vercel deploy` y descubrir a medias qué
+se rompía.
+
+**Subida de archivos → Vercel Blob.** Los tres sitios (avatar, imagen de
+evento, foto de speaker) tenían la misma lógica triplicada byte a byte;
+se extrajo a `UploadService` compartido
+(`src/common/upload/upload.service.ts`, nuevo), que conserva intacta la
+validación real (bytes con `file-type`, nunca el mimetype del cliente,
+renombrado a UUID) y solo cambia el paso final. Con
+`BLOB_READ_WRITE_TOKEN` sube a Vercel Blob; sin él (desarrollo/pruebas,
+sin forma de emular Blob localmente) cae a disco local — mismo principio
+de *fallback* por entorno que ya existía para Mailpit.
+
+**BullMQ → Upstash QStash.** Un worker persistente no puede sostenerse
+entre invocaciones serverless. Se eliminó por completo
+(`BullModule.forRootAsync`, las dos colas, `MailProcessor` y
+`ReconciliationProcessor`) y se reemplazó por QStash, que entrega cada
+trabajo llamando de vuelta a un endpoint HTTP propio
+(`POST /internal/mail/send`, `POST /internal/cron/reconciliation`, ambos
+nuevos y protegidos por `QstashSignatureGuard`) con reintentos/backoff ya
+resueltos por la plataforma. Igual que con las subidas: sin
+`QSTASH_TOKEN`/`PUBLIC_URL` configurados, `MailService` envía directo
+(desarrollo/pruebas contra Mailpit) sin esperar la respuesta — el
+principio de que un fallo de correo nunca bloquea la petición que lo
+disparó no cambió, solo el mecanismo detrás.
+
+**Prisma/Supabase.** `prisma.config.ts` pasa a leer `DIRECT_URL` (el CLI
+de migraciones necesita la conexión directa a Postgres; el *connection
+pooler* de Supabase, que usa la app en runtime vía `DATABASE_URL`, no
+soporta los *prepared statements* que las migraciones requieren).
+`PrismaService` fija `max: 1` en el pool — sin tope, cada invocación
+serverless agotaría las conexiones del pooler bajo carga concurrente.
+
+**Entrypoint serverless.** `api/index.ts` (nuevo) envuelve el mismo
+`AppModule` sin `app.listen()`, reutilizando un bootstrap compartido con
+`src/main.ts` (`src/bootstrap.ts`, nuevo) — Vercel detecta una instancia
+de Express exportada directamente, sin adaptador extra.
+
+**Bug real encontrado a mitad de la implementación, corregido antes de
+seguir:** el primer diseño de `UploadService` usaba Vercel Blob siempre,
+sin *fallback* local — habría roto en seco toda la suite de pruebas que
+ejercita `POST /me/avatar`/`POST /events/:id/image`/`POST /speakers/:id/photo`,
+ya que no hay forma de correr Vercel Blob localmente sin una cuenta real.
+Corregido antes de que ningún test llegara a fallar, aplicando el mismo
+patrón de *fallback* por entorno que `MailService` ya usaba para QStash.
+
+- Jest: 325/325 (sin cambios de número — ningún test dependía de
+  internals de BullMQ o de rutas de disco, solo de comportamiento
+  observable que no cambió).
+- Playwright: 19/19, sin cambios.
+- Pendiente, fuera del código (no lo puede resolver un commit): crear las
+  cuentas de Supabase/Upstash/Vercel, provisionar un SMTP real de
+  producción (Mailpit es solo de desarrollo), y correr el despliegue con
+  Vercel CLI — documentado como instrucciones para el responsable del
+  proyecto, no ejecutable desde acá.
+- Commits: `6b185cd` (entrypoint serverless + Prisma + dependencias),
+  `6ffa771` (subidas a Vercel Blob), `24d3e28` (BullMQ → QStash).
+
 ### 2026-09-04 — Swagger/OpenAPI y prueba manual de todos los endpoints
 
 Fuera de la cadena de `prompts/` (que terminó en `004-b`): pedido directo
