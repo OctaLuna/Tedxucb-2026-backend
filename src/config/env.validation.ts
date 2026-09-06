@@ -8,9 +8,6 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
-  AVATAR_UPLOAD_DIR: z.string().default('./uploads/avatars'),
-  EVENT_IMAGE_UPLOAD_DIR: z.string().default('./uploads/events'),
-  SPEAKER_PHOTO_UPLOAD_DIR: z.string().default('./uploads/speakers'),
   // Defaults apuntan a Mailpit local (docker-compose.yml) -- dev/tests
   // funcionan sin tocar .env. En producción se sobreescriben con
   // credenciales SMTP reales.
@@ -23,7 +20,22 @@ const envSchema = z.object({
   // JWT_SECRET -- defensa en profundidad: si uno se filtra, el otro sigue
   // protegido.
   QR_TOKEN_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres'),
+  // QStash (Upstash) reemplaza al worker persistente de BullMQ para correos
+  // y la reconciliación diaria -- no existe en un entorno serverless
+  // (Vercel). Sin estas tres, MailService envía directo (dev/pruebas,
+  // contra Mailpit) en vez de publicar a QStash. PUBLIC_URL es la URL
+  // pública del propio backend desplegado, a la que QStash llama de vuelta.
+  QSTASH_TOKEN: z.string().optional(),
+  QSTASH_CURRENT_SIGNING_KEY: z.string().optional(),
+  QSTASH_NEXT_SIGNING_KEY: z.string().optional(),
+  PUBLIC_URL: z.string().url().optional(),
 });
+
+// BLOB_READ_WRITE_TOKEN (Vercel Blob, ver src/common/upload/upload.service.ts)
+// no está acá: el SDK de @vercel/blob lo lee directo de process.env, nadie
+// en este proyecto lo pide vía ConfigService -- documentado en
+// .env.example, no en este esquema (que solo valida lo que el código
+// realmente consume por config.get(...)).
 
 export type EnvConfig = z.infer<typeof envSchema>;
 

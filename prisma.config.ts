@@ -12,7 +12,16 @@ export default defineConfig({
     // corría automáticamente.
     seed: 'ts-node prisma/seed.ts',
   },
+  // @prisma/config (7.10) no tiene un campo `directUrl` -- a diferencia del
+  // datasource de schema.prisma. Las migraciones/CLI leen DIRECT_URL acá;
+  // la app en runtime (src/common/prisma/prisma.service.ts) lee
+  // DATABASE_URL por su cuenta, vía @prisma/adapter-pg, sin pasar por este
+  // archivo. En Supabase, DATABASE_URL apunta al *connection pooler*
+  // (puerto 6543, para las funciones serverless) y DIRECT_URL a la
+  // conexión directa (puerto 5432, la única que soporta los *prepared
+  // statements* que usan las migraciones). En local (Docker Compose, sin
+  // pooler) ambas pueden ser la misma URL.
   datasource: {
-    url: env('DATABASE_URL'),
+    url: env('DIRECT_URL'),
   },
 });

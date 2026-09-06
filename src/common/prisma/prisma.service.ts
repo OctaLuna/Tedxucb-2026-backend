@@ -9,6 +9,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   constructor(config: ConfigService<EnvConfig, true>) {
     const adapter = new PrismaPg({
       connectionString: config.get('DATABASE_URL', { infer: true }),
+      // Sin tope, cada invocación serverless (Vercel) abre su propio pool
+      // de conexiones contra el *connection pooler* de Supabase -- bajo
+      // carga concurrente eso agota las conexiones. max:1 mantiene una
+      // sola conexión por invocación; el pooler de Supabase es quien
+      // multiplexa muchas invocaciones sobre pocas conexiones reales a
+      // Postgres. En local (Docker Compose, sin límite del proveedor) no
+      // hace falta, pero tampoco molesta.
+      max: 1,
     });
     super({ adapter });
   }
