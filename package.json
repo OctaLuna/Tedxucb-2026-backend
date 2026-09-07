@@ -7,6 +7,8 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "build": "nest build",
+    "vercel-build": "prisma generate && nest build",
+    "postinstall": "prisma generate",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test:e2e": "playwright test",
     "points-cli": "ts-node src/cli/points-cli.ts"
