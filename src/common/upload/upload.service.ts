@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { fileTypeFromBuffer } from 'file-type';
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
@@ -35,6 +34,12 @@ export class UploadService {
       throw new AppException(422, 'INVALID_IMAGE', 'No se recibió ningún archivo.');
     }
 
+    // Import dinámico, no estático: file-type se publica como ESM puro y
+    // el require() que genera la compilación a CommonJS de este archivo no
+    // puede cargarlo en el runtime de funciones de Vercel (ERR_REQUIRE_ESM
+    // real, detectado en el primer deploy) -- import() sí funciona en
+    // cualquier entorno, sea CJS o ESM.
+    const { fileTypeFromBuffer } = await import('file-type');
     const detected = await fileTypeFromBuffer(buffer);
     if (!detected || !ALLOWED_IMAGE_MIME_TYPES.has(detected.mime)) {
       throw new AppException(422, 'INVALID_IMAGE', 'El archivo no es una imagen válida en un formato admitido.');
