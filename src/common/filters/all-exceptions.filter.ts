@@ -5,6 +5,7 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { Response } from 'express';
@@ -43,10 +44,19 @@ interface UniformErrorBody {
  */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
+  private readonly logger = new Logger(AllExceptionsFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
 
     const body = this.toUniformBody(exception);
+    // El cliente nunca ve el stack trace (Artículo V), pero sin loguearlo
+    // acá un 500 real es indiagnosticable en producción -- no hay ningún
+    // otro punto del código que lo capture (bug real: encontrado
+    // desplegando en Vercel, un 500 sin ninguna pista en los logs).
+    if (body.statusCode === HttpStatus.INTERNAL_SERVER_ERROR && !(exception instanceof AppException)) {
+      this.logger.error(exception instanceof Error ? exception.stack ?? exception.message : exception);
+    }
     response.status(body.statusCode).json(body);
   }
 
