@@ -1,0 +1,12 @@
+-- Bug real encontrado desplegando contra Supabase (2026-09-08): la
+-- migración 20260902171830_add_activities_and_points_ledger hace
+-- REVOKE UPDATE, DELETE ON point_transactions FROM ted -- "ted" es el
+-- rol de Postgres de Docker Compose local (POSTGRES_USER=ted), no
+-- existe en Supabase ni en ningún otro proveedor administrado. No se
+-- edita esa migración ya aplicada (localmente sigue siendo válida tal
+-- cual) -- esta usa CURRENT_USER en vez de un nombre fijo, portable a
+-- cualquier entorno: revoca del rol que de verdad está corriendo la
+-- migración, sea cual sea su nombre. Si ya estaba revocado (como en
+-- local, donde la migración anterior ya lo hizo contra "ted"), REVOKE
+-- sobre un privilegio ausente no falla, es un no-op.
+REVOKE UPDATE, DELETE ON point_transactions FROM CURRENT_USER;
