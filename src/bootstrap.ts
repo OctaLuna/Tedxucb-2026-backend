@@ -31,10 +31,37 @@ export async function configureApp(app: NestExpressApplication): Promise<void> {
     .addBearerAuth()
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, swaggerDocument);
+  // customCssUrl/customJs: swagger-ui-dist normalmente se sirve como
+  // estático local (express.static sobre la carpeta del paquete), pero el
+  // *file tracer* de Vercel no detecta esa ruta resuelta en tiempo de
+  // ejecución y esos archivos nunca llegan al despliegue -- 404 real
+  // encontrado probando el link en producción. Se cargan desde jsdelivr
+  // en vez de pelear con el tracing; versión fijada a la exacta que trae
+  // instalada @nestjs/swagger@8.1.1 (swagger-ui-dist@5.18.2) para que la
+  // API que espera el HTML generado coincida con la que carga el CDN.
+  SwaggerModule.setup('api/docs', app, swaggerDocument, {
+    customCssUrl: 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.18.2/swagger-ui.min.css',
+    customJs: [
+      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.18.2/swagger-ui-bundle.js',
+      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.18.2/swagger-ui-standalone-preset.js',
+    ],
+  });
 
   app.setGlobalPrefix('api/v1');
-  app.use(helmet());
+  app.use(
+    helmet({
+      // script-src por defecto de Helmet es 'self': bloquearía los
+      // scripts de Swagger UI cargados desde jsdelivr de arriba, aunque
+      // el 404 ya esté resuelto -- el navegador los descartaría igual por
+      // CSP (visto en la consola del responsable probando el link real).
+      contentSecurityPolicy: {
+        directives: {
+          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          'script-src': ["'self'", 'https://cdn.jsdelivr.net'],
+        },
+      },
+    }),
+  );
   app.enableCors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173' });
 
   // Fallback de disco local para subidas (ver UploadService) -- solo
