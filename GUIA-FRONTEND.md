@@ -47,18 +47,32 @@ un servidor de correo real.
 | Mailpit — SMTP | `1025` |
 | Mailpit — UI / API REST | `8025` |
 
+## 1.1 Producción
+
+El backend ya está desplegado en Vercel (Postgres/Supabase, Redis/Upstash,
+Blob para archivos): **`https://ted-backend.vercel.app`**. Mismas rutas
+que en local, con el prefijo `/api/v1`. Swagger interactivo en
+[`https://ted-backend.vercel.app/api/docs`](https://ted-backend.vercel.app/api/docs).
+
+Correos reales van por Resend (no Mailpit) y los archivos subidos
+(avatares, fotos de speaker, imagen de evento) quedan en Vercel Blob con
+URL absoluta `https://*.public.blob.vercel-storage.com/...`, no en
+`/uploads/*` como en local — no asumas que la URL es relativa al host de
+la API.
+
 ## 2. URL base y documentación interactiva
 
-- **Prefijo de toda la API**: `http://localhost:3000/api/v1` — todas las
+- **Prefijo de toda la API**: `http://localhost:3000/api/v1` en local,
+  `https://ted-backend.vercel.app/api/v1` en producción — todas las
   rutas de esta guía y de los contratos van sin este prefijo por brevedad,
   agrégalo siempre.
-- **Swagger (interactivo)**: `http://localhost:3000/api/docs` — lista los
-  ~80 endpoints agrupados por módulo, con el botón **Authorize** para
-  probar peticiones autenticadas pegando un `accessToken` real (ver
-  sección 4).
-- **Documento OpenAPI crudo**: `http://localhost:3000/api/docs-json` — útil
-  para generar un cliente HTTP tipado (`openapi-typescript`, `orval`, etc.)
-  en vez de tipar las peticiones a mano.
+- **Swagger (interactivo)**: `/api/docs` sobre cualquiera de las dos URLs
+  — lista los ~80 endpoints agrupados por módulo, con el botón
+  **Authorize** para probar peticiones autenticadas pegando un
+  `accessToken` real (ver sección 4).
+- **Documento OpenAPI crudo**: `/api/docs-json` — útil para generar un
+  cliente HTTP tipado (`openapi-typescript`, `orval`, etc.) en vez de
+  tipar las peticiones a mano.
 - **Fuente exacta de cada respuesta**: Swagger infiere los DTO de petición
   automáticamente, pero varias respuestas son objetos compuestos ad-hoc
   (por ejemplo la del check-in, que junta datos de tres tablas) y ahí
@@ -70,9 +84,13 @@ un servidor de correo real.
 ## 3. CORS
 
 El backend solo permite **un origen a la vez**, vía la variable
-`CORS_ORIGIN` de su `.env` (por defecto `http://localhost:5173`, el puerto
-típico de un `vite dev`). Si el frontend corre en otro host o puerto, hay
-que cambiar esa variable en el `.env` del backend y reiniciarlo.
+`CORS_ORIGIN`. En local, en su `.env` (por defecto `http://localhost:5173`,
+el puerto típico de un `vite dev`). En producción, hoy sigue apuntando a
+ese mismo `http://localhost:5173` como placeholder — en cuanto el
+frontend tenga su propia URL desplegada, avisa para actualizar
+`CORS_ORIGIN` en las variables de entorno de Vercel (`vercel env` o el
+dashboard) y volver a desplegar; hasta entonces, peticiones desde un
+origen real (no localhost) van a fallar por CORS.
 
 No hay `credentials: true` configurado — no se usan cookies para nada, toda
 la autenticación es por token en la cabecera `Authorization` (sección 4).
@@ -146,7 +164,10 @@ entornos de desarrollo/pruebas**, nunca se siembran si `NODE_ENV=production`:
 
 Con esta cuenta se puede crear al resto del staff (`POST /users`, ver
 Swagger o `specs/001-identidad-y-usuarios/contracts/usuarios-y-roles.md`) y
-operar cualquier endpoint administrativo.
+operar cualquier endpoint administrativo. **Estas mismas credenciales ya
+están sembradas en producción** (`https://ted-backend.vercel.app`) —
+verificado con un login real. Cámbiala o crea un admin propio antes de
+usarla para nada más allá de pruebas de integración del frontend.
 
 ## 6. Roles
 

@@ -45,6 +45,90 @@ _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
 
+### 2026-09-08 — Backend desplegado en producción: `https://ted-backend.vercel.app`
+
+Ejecución real del despliegue preparado el 2026-09-06. El responsable dio
+credenciales reales de Supabase, Upstash Redis, un token de acceso de
+Vercel y una API key de Resend (elegido como proveedor de SMTP de
+producción: nivel gratuito de sobra, cero cambios de código porque
+`MailService` ya habla SMTP genérico). El deploy tardó varias vueltas —
+cada una encontró un bug real, no hipotético, y quedó corregido antes de
+seguir:
+
+1. **El build de Vercel bloqueaba los scripts de instalación**
+   (`allowScripts` de npm) — `prisma generate` nunca corría y el cliente
+   de Prisma quedaba vacío, sin ningún modelo exportado. Corregido con
+   `postinstall`/`vercel-build` explícitos.
+2. **`@nestjs/core@12` es ESM puro** — el runtime de funciones de Vercel
+   no soporta `require()` de ESM sin importar la versión de Node
+   declarada (probado 22.x y 24.x, mismo error; un `package.json`/
+   `tsconfig.json` anidado en `api/` para forzar ESM real revelaba en
+   cascada que TODO `src/**` necesitaría extensiones `.js` explícitas en
+   cada import relativo). Se optó por **bajar NestJS a la última línea
+   10.x** (la última en CommonJS puro) en vez de migrar todo el proyecto
+   a ESM — cero cambios de código de aplicación, 325 Jest + 19 Playwright
+   en verde antes de volver a intentar.
+3. **`file-type` también es ESM puro** — a diferencia de NestJS (cientos
+   de archivos), acotado a un solo archivo. Dos intentos de import
+   dinámico (`await import(...)` directo, luego forzado con
+   `new Function` porque TypeScript "downlevela" el primero a un
+   `require()` envuelto) resultaron frágiles o intermitentes entre el
+   sandbox de VM modules de Jest y el runtime de Vercel. Se reemplazó
+   `file-type` por un detector de firmas de bytes propio
+   (`image-signature.util.ts`, PNG/JPEG/GIF/WEBP) — sin dependencia
+   externa, sin frontera ESM/CJS que cruzar.
+4. **La migración de activities/points tenía `REVOKE ... FROM ted`
+   hardcodeado** (el rol de Postgres de Docker Compose local) — falló
+   contra Supabase, que usa otro rol. Todo el resto de esa migración
+   (tablas, trigger anti-mutación, índices, FKs) sí había aplicado,
+   confirmado consultando el esquema real antes de resolver. Se marcó
+   como aplicada (`prisma migrate resolve --applied`) y se agregó una
+   migración nueva con `REVOKE ... FROM CURRENT_USER` (portable a
+   cualquier entorno) en vez de editar la ya aplicada.
+5. **`AllExceptionsFilter` nunca logueaba nada del lado del servidor**
+   para un 500 no controlado — bloqueaba diagnosticar cualquiera de los
+   bugs de arriba una vez desplegados. Se agregó `logger.error()` con el
+   stack completo, solo server-side (el cliente nunca ve más que el 500
+   genérico, Artículo V).
+6. **`secure: false` fijo en el transporter SMTP** — correcto para
+   Mailpit (1025, sin TLS) pero cuelga contra Resend (465, TLS
+   implícito) hasta agotar el timeout de la función en vez de fallar
+   rápido. `secure` ahora se deriva del puerto.
+7. **Fallback de correo directo no esperaba su propia promesa**
+   (`void ... .catch(...)`) — inofensivo en un servidor tradicional,
+   pero en serverless la función puede congelarse apenas responde, así
+   que el correo podía no llegar a enviarse. Corregido a `await` con el
+   mismo try/catch de siempre.
+
+Verificado end-to-end contra producción real, no solo el build: login
+devuelve `200` con JWT válido, `GET /me` funciona, las 8 migraciones
+quedaron aplicadas contra Supabase, el admin de desarrollo
+(`GUIA-FRONTEND.md`) quedó sembrado y confirmado con login real, subir una
+imagen de evento devuelve una URL real de Vercel Blob y esa URL sirve la
+imagen con el content-type correcto, una postulación pública dispara un
+correo real vía Resend sin colgarse, y los endpoints internos de QStash
+(`/internal/mail/send`, `/internal/cron/reconciliation`) rechazan con
+`401` sin firma válida.
+
+**Pendiente, fuera del código:** el responsable del proyecto todavía no
+dio credenciales de Upstash QStash — mientras tanto `MailService` sigue
+en modo *fallback* directo (funciona, solo sin reintentos automáticos ni
+desacople real de la petición), y no hay *schedule* de reconciliación
+diaria corriendo (el endpoint existe y está protegido, solo falta
+crearlo contra la API de QStash). `CORS_ORIGIN` sigue apuntando a
+`localhost:5173` como placeholder hasta que el frontend tenga su propia
+URL desplegada.
+
+- Jest: 325/325 (sin cambios de número, dos corridas limpias seguidas
+  tras el reemplazo de `file-type`).
+- Playwright: 19/19.
+- Commits relevantes (orden cronológico):
+  `postinstall`/`vercel-build` de Prisma, baja de NestJS a 10.x, fix de
+  `file-type` → import dinámico → detector de bytes propio, migración
+  `REVOKE ... FROM CURRENT_USER`, logging de 500 en
+  `AllExceptionsFilter`, fix de `secure` SMTP por puerto, fix de `await`
+  en el fallback de correo.
+
 ### 2026-09-06 — Preparación para desplegar en Vercel + Supabase
 
 Fuera de la cadena de `prompts/`, igual que la entrada anterior: pedido
