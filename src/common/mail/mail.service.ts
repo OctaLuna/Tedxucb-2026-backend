@@ -57,9 +57,13 @@ export class MailService {
     });
 
     const qstashToken = this.config.get('QSTASH_TOKEN', { infer: true });
+    const qstashUrl = this.config.get('QSTASH_URL', { infer: true });
     this.publicUrl = this.config.get('PUBLIC_URL', { infer: true });
     if (qstashToken && this.publicUrl) {
-      this.qstash = new QstashClient({ token: qstashToken });
+      // baseUrl solo hace falta cuando la cuenta tiene un endpoint
+      // regional fijo (p. ej. qstash-eu-central-1.upstash.io) en vez del
+      // enrutamiento global por defecto del SDK.
+      this.qstash = new QstashClient(qstashUrl ? { token: qstashToken, baseUrl: qstashUrl } : { token: qstashToken });
     }
   }
 

@@ -28,6 +28,11 @@ const envSchema = z.object({
   QSTASH_TOKEN: z.string().optional(),
   QSTASH_CURRENT_SIGNING_KEY: z.string().optional(),
   QSTASH_NEXT_SIGNING_KEY: z.string().optional(),
+  // Opcional: solo hace falta cuando la cuenta de Upstash QStash tiene su
+  // endpoint fijado a una región específica (p. ej.
+  // https://qstash-eu-central-1.upstash.io) en vez del enrutamiento
+  // global por defecto del SDK (https://qstash.upstash.io).
+  QSTASH_URL: z.string().url().optional(),
   PUBLIC_URL: z.string().url().optional(),
 });
 
