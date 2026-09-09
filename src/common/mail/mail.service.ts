@@ -42,10 +42,17 @@ export class MailService {
   constructor(private readonly config: ConfigService<EnvConfig, true>) {
     const user = this.config.get('SMTP_USER', { infer: true });
     const password = this.config.get('SMTP_PASSWORD', { infer: true });
+    const port = this.config.get('SMTP_PORT', { infer: true });
     this.transporter = nodemailer.createTransport({
       host: this.config.get('SMTP_HOST', { infer: true }),
-      port: this.config.get('SMTP_PORT', { infer: true }),
-      secure: false,
+      port,
+      // Puerto 465 = TLS implícito desde el saludo inicial (secure: true);
+      // cualquier otro (587/1025 de Mailpit) = STARTTLS o sin cifrar,
+      // nodemailer negocia solo. Bug real encontrado en el primer correo
+      // de prueba en producción: secure:false fijo contra el 465 de
+      // Resend colgaba la conexión (nunca falla rápido, agota el timeout
+      // de la función) en vez de fallar con un error claro.
+      secure: port === 465,
       auth: user && password ? { user, pass: password } : undefined,
     });
 
