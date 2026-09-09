@@ -45,6 +45,51 @@ _(más reciente primero — cada entrada la añade el prompt que se acaba de
 cerrar: fecha, prompt, qué se hizo, resultado de Jest y de Playwright, hash
 del commit)_
 
+### 2026-09-09 — QStash configurado: cola de correo y reconciliación diaria activas
+
+Cierre de la entrada anterior. El responsable dio las credenciales reales
+de QStash (una cuenta con **endpoint regional fijo**,
+`qstash-eu-central-1.upstash.io`, no el global por defecto del SDK de
+Upstash) — se agregó soporte para `QSTASH_URL` como `baseUrl` opcional
+del `Client`, no contemplado en el diseño original. Cargadas las cuatro
+variables (`QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`,
+`QSTASH_NEXT_SIGNING_KEY`, `QSTASH_URL`) más `PUBLIC_URL` en Vercel y
+redesplegado.
+
+**Bug real al crear el *schedule* de reconciliación, encontrado y
+corregido en el momento:** la API de QStash para *schedules* no recibe
+`destination`/`cron` en el cuerpo JSON (esa es la forma del `publish`
+puntual) — el destino va **en la ruta**, sin *URL-encode* (`POST
+/v2/schedules/https://tu-destino/...` tal cual, no
+`https%3A%2F%2F...`), y el cron va en el header `Upstash-Cron`, no en el
+body. Ambas formas equivocadas devolvían el mismo error genérico
+("invalid destination url: endpoint has invalid scheme") sin indicar
+cuál de las dos cosas estaba mal — se confirmó la forma correcta leyendo
+directamente el código fuente del SDK instalado
+(`node_modules/@upstash/qstash`) en vez de seguir adivinando variantes.
+
+Verificado end-to-end contra producción real:
+- Una postulación pública real disparó `MailService.dispatch()` →
+  publicó a QStash → QStash llamó de vuelta a
+  `POST /internal/mail/send` (confirmado en los logs de Vercel, ~2.5s
+  después) → el correo salió por Resend. Ya no es el *fallback* directo
+  de la entrada anterior.
+- El *schedule* diario (`scd_6YbuoTNWZWPzv2r9wpCQUC7upSFq`, cron
+  `0 7 * * *` UTC = 03:00 La Paz, apuntando a
+  `/internal/cron/reconciliation`) quedó creado y confirmado activo
+  (`isPaused: false`) contra la API de QStash.
+- `POST /internal/cron/reconciliation` sin firma ahora responde `401
+  "Falta la firma de QStash"` (verificación real) en vez del `401
+  "QStash no está configurado en este entorno"` de antes — confirma que
+  `QstashSignatureGuard` pasó de rechazar por falta de configuración a
+  verificar de verdad.
+
+Con esto, el backend en producción queda funcionalmente completo: sin
+pendientes de infraestructura propios (solo `CORS_ORIGIN`, que espera a
+que el frontend tenga su propia URL desplegada).
+
+- Commits: `5b00355` (soporte `QSTASH_URL`).
+
 ### 2026-09-08 — Backend desplegado en producción: `https://ted-backend.vercel.app`
 
 Ejecución real del despliegue preparado el 2026-09-06. El responsable dio
