@@ -44,6 +44,22 @@ export class ReconciliationCronController {
         },
       });
     }
-    return { discrepancies: discrepancies.length };
+    const eventDiscrepancies = await this.reconciliation.checkEventProjection();
+    for (const discrepancy of eventDiscrepancies) {
+      this.logger.error(
+        `Discrepancia de saldo por evento: alumno ${discrepancy.studentId}, evento ${discrepancy.eventId} -- ` +
+          `proyecciÃ³n ${discrepancy.cachedTotal}, ledger ${discrepancy.ledgerTotal}.`,
+      );
+      await this.prisma.auditLog.create({
+        data: {
+          actorId: null,
+          action: 'EVENT_POINTS_PROJECTION_DISCREPANCY_DETECTED',
+          entityType: 'event_student_points',
+          detail: { eventId: discrepancy.eventId, studentId: discrepancy.studentId,
+            cachedTotal: discrepancy.cachedTotal, ledgerTotal: discrepancy.ledgerTotal },
+        },
+      });
+    }
+    return { discrepancies: discrepancies.length + eventDiscrepancies.length };
   }
 }

@@ -18,9 +18,12 @@ specs/
   002-sitio-publico/
   003-motor-de-puntos/
   004-seleccion-de-cupos/
+  005-identidad-compartida/
 ```
 
 ## Features
+
+> Actualizacion de `005`: la implementacion funcional esta en curso; la verificacion local mas reciente esta en [avance-integracion-2026-10-23.md](./005-identidad-compartida/avance-integracion-2026-10-23.md). Ese registro supersede el resumen de planificacion de esta pagina.
 
 | ID | Feature | Depende de | Estado |
 |---|---|---|---|
@@ -28,11 +31,13 @@ specs/
 | `002` | Sitio público TEDxUCB | 001 (parcial) | spec ✅ · plan ✅ · tasks ✅ |
 | `003` | Motor de puntos y participación | 001 | spec ✅ · plan ✅ · tasks ✅ |
 | `004` | Selección y gestión de cupos | 003 | spec ✅ · plan ✅ · tasks ✅ |
+| `005` | Identidad compartida y acceso modular por evento | 001–004 | Implementación integrada en curso; consultar avance y gates abiertos |
 
-Las cuatro features tienen ya el ciclo técnico completo (`plan.md` +
-`data-model.md` + `contracts/` + `tasks.md`). `003` y `004` son las de mayor
-riesgo: entre las dos deciden, en última instancia, quién ocupa los 80
-asientos.
+Las features `001–004` tienen su ciclo técnico documentado. La feature `005`
+ya tiene implementación local integrada en backend, Innovation Week, TEDx y
+Avatar 2D. Los detalles verificados y los gates pendientes de OAuth real,
+SMTP externo, suite completa y preparación de release están en
+[avance-integracion-2026-10-23.md](./005-identidad-compartida/avance-integracion-2026-10-23.md).
 
 ## Orden de trabajo recomendado
 
@@ -51,24 +56,29 @@ speakers mientras el resto se construye.
 |---|---|
 | Constitution | ✅ `memory/constitution.md` |
 | Specify | ✅ 4 specs redactados |
-| Clarify | ✅ completa — **0 marcadores abiertos** (001: 0 · 002: 0 · 003: 0 · 004: 0) |
-| Plan | ✅ `001`, `002`, `003` y `004` |
-| Tasks | ✅ `001`, `002`, `003` y `004` |
-| Analyze | ✅ `docs/analisis-sdd.md` |
-| Implement | 🟡 `001`, `002` y `003` implementados y probados (`docs/progress.md`); `004` pendiente (`004-b`) |
+| Clarify | ✅ decisiones de producto acordadas para `005`; pendientes externos documentados |
+| Plan | ✅ `001–004`; borrador detallado `005` |
+| Tasks | ✅ `001–004`; desglosadas con gates `005` |
+| Analyze | ✅ `docs/analisis-sdd.md`; trazabilidad de `005` en revisión continua |
+| Implement | 🟡 `001`–`003` implementados; `004` pendiente (`004-b`); `005` integrada localmente, gates de verificación/release abiertos |
 
 ## Decisiones tomadas
 
 | Fecha | Requisito | Decisión |
 |---|---|---|
+| 2026-10-22 | Identidad compartida | Google directo, sin Firebase; cuenta y apodo compartidos; apodo único; autorización externa granular por evento con ambos eventos por defecto; invitación email de 3 días y whitelist obligatoria (véase `005`) |
+| 2026-10-23 | Estados al vincular Google | Vincular cuentas `PENDING`, `REJECTED` e `INVITED` conservando estado y bloqueo; nunca reactivar `DISABLED` (véase `005`) |
+| 2026-10-23 | Apodo | De 3 a 24 caracteres, únicamente letras y números, único global, normalización Unicode/case; 24 adoptado como límite técnico (véase `005`) |
+| 2026-10-23 | Eventos | Cuenta compartida con permisos y datos operativos aislados por evento; migración modular expand/contract (véase `005`) |
+| 2026-10-23 | Auditoría temporal | No añadir auditoría a vínculo Google, whitelist e invitación en fase funcional; excepción al Artículo V pendiente de enmienda/aprobación antes de producción (ADR-010, `005`) |
 | 2026-08-30 | Roles | Administrador y coordinador son un solo rol |
 | 2026-08-30 | RF-310 | Sin escala fija de puntos: el administrador define el valor al crear cada actividad, con valor sugerido por categoría |
 | 2026-08-30 | RF-407 | Ranking puro por puntos, sin cuota por facultad. El sistema reporta la distribución resultante |
 | 2026-08-30 | RF-401 | El número de cupos es configurable; 100/80 es estimación, no constante |
-| 2026-08-30 | RF-109 | Auto-registro de alumnos con credenciales propias, no autenticación federada |
+| 2026-08-30 | RF-109 | Auto-registro de alumnos con credenciales propias; ampliado el 2026-10-22 para identidad compartida mediante Google (véase `005`) |
 | 2026-08-31 | Corrección de correo | Solo el administrador puede cambiar el correo de un alumno ya activo, a solicitud del alumno, con re-verificación |
 | 2026-08-31 | RF-108 | 7 días de vigencia para invitaciones, verificación y recuperación |
-| 2026-08-31 | RF-123 | Dominio institucional `@ucb.edu.bo` — todos los alumnos activos tienen correo de ese dominio |
+| 2026-08-31 | RF-123 | Dominio institucional `@ucb.edu.bo`; ampliado el 2026-10-22 para permitir correos externos invitados o autorizados (véase `005`) |
 | 2026-08-31 | RF-105 / RF-125 | No existe padrón institucional exportable: se elimina RF-105, RF-125 se redacta sin validación automática contra padrón (ver ADR-007) |
 | 2026-08-31 | RF-110 | No habrá servicio de alimentos: se elimina el campo "restricciones alimentarias" |
 | 2026-08-31 | RF-128 | No existe texto de consentimiento aprobado: el sistema soporta un texto configurable y versionado por el administrador |

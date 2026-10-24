@@ -4,6 +4,7 @@ import { createTestApp } from '../support/test-app';
 import { cleanAllTables, closeTestDb } from '../support/prisma-test-client';
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
+import { seedEvent } from '../support/seed-content';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -41,6 +42,7 @@ describe('Caso límite: misma persona postula varias veces (T075)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   it('no se bloquea el reenvío; el panel muestra submissionsFromSameEmail=2 sin distinguir mayúsculas', async () => {

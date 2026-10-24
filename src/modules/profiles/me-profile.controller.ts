@@ -17,6 +17,7 @@ import { ProfileService } from './profile.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AccessTokenPayload } from '../auth/token-pair.service';
+import { AllowPendingAccount } from '../auth/decorators/allow-pending-account.decorator';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { AVATAR_MAX_BYTES } from './profiles.constants';
 
@@ -28,16 +29,19 @@ export class MeProfileController {
   constructor(private readonly profileService: ProfileService) {}
 
   @Get('profile')
+  @AllowPendingAccount()
   async getProfile(@CurrentUser() user: AccessTokenPayload) {
     return this.profileService.getMyProfile(user.sub);
   }
 
   @Patch('profile')
+  @AllowPendingAccount()
   async updateProfile(@Body() dto: UpdateProfileDto, @CurrentUser() user: AccessTokenPayload) {
     return this.profileService.updateMyProfile(user.sub, dto);
   }
 
   @Post('avatar')
+  @AllowPendingAccount()
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(
     FileInterceptor('file', {

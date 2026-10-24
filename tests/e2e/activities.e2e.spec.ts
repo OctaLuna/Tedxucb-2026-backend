@@ -4,6 +4,7 @@ import { cleanAllTables, prismaTestClient } from '../support/prisma-test-client'
 import { cleanRateLimits } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
+import { grantEventAccess, seedTestEvent } from '../support/seed-events';
 import { expiredQrToken } from '../support/qr-token-fixture';
 
 function activityPayload(overrides: Record<string, unknown> = {}) {
@@ -23,11 +24,13 @@ test.describe('activities: ciclo de check-in y motor de puntos (T086)', () => {
   test.beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedTestEvent();
   });
 
   test('crear, publicar, asignar staff, emitir QR y hacer check-in otorga los puntos', async ({ request }) => {
     const admin = await seedUser({ email: `e2e-admin-activities-${Date.now()}@ucb.edu.bo`, roles: ['ADMIN'] });
     const staff = await seedUser({ email: `e2e-staff-activities-${Date.now()}@ucb.edu.bo`, roles: ['STAFF'] });
+    await grantEventAccess(staff.email);
     const { user: student } = await seedStudent({ email: `e2e-alumno-activities-${Date.now()}@ucb.edu.bo` });
 
     const adminLogin = await request.post('/api/v1/auth/login', {
@@ -85,6 +88,7 @@ test.describe('activities: ciclo de check-in y motor de puntos (T086)', () => {
 
   test('rechaza con 401 EXPIRED_QR_TOKEN un token QR vencido', async ({ request }) => {
     const staff = await seedUser({ email: `e2e-staff-vencido-${Date.now()}@ucb.edu.bo`, roles: ['STAFF'] });
+    await grantEventAccess(staff.email);
     const admin = await seedUser({ email: `e2e-admin-vencido-${Date.now()}@ucb.edu.bo`, roles: ['ADMIN'] });
     const { user: student } = await seedStudent({ email: `e2e-alumno-vencido-${Date.now()}@ucb.edu.bo` });
 

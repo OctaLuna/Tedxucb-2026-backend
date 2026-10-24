@@ -10,10 +10,17 @@ describe('Restricciones del motor — tablas de content (T024 parcial: events/co
     await closeTestDb();
   });
 
-  it('el índice único parcial permite como máximo un evento publicado', async () => {
-    await seedEvent({ status: 'PUBLISHED' });
+  it('permite publicar ambos eventos de forma independiente', async () => {
+    const tedx = await seedEvent({ status: 'PUBLISHED' });
+    const innovation = await seedEvent({
+      slug: 'innovation-week',
+      name: 'Semana de la Facultad',
+      status: 'PUBLISHED',
+    });
 
-    await expect(seedEvent({ status: 'PUBLISHED' })).rejects.toThrow();
+    expect(tedx.status).toBe('PUBLISHED');
+    expect(innovation.status).toBe('PUBLISHED');
+    expect(innovation.id).not.toBe(tedx.id);
   });
 
   it('un segundo evento en DRAFT convive sin problema con uno publicado', async () => {
@@ -62,7 +69,7 @@ describe('Restricciones del motor — tablas de content (T024 parcial: events/co
 
   it('rechaza un body de bloque de contenido en blanco', async () => {
     await expect(
-      prismaTestClient.contentBlock.create({ data: { key: 'vacio', body: '   ' } }),
+      prismaTestClient.contentBlock.create({ data: { eventId: (await seedEvent()).id, key: 'vacio', body: '   ' } }),
     ).rejects.toThrow();
   });
 });

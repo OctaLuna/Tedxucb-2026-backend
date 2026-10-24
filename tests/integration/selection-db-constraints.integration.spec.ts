@@ -10,6 +10,7 @@ import { seedEvent } from '../support/seed-content';
 describe('Restricciones del motor -- selection_runs/selections (T033)', () => {
   beforeEach(async () => {
     await cleanAllTables();
+    await seedEvent();
   });
 
   afterAll(async () => {

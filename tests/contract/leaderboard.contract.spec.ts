@@ -5,6 +5,7 @@ import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedCareer, seedStudent } from '../support/seed-catalog';
+import { seedEvent } from '../support/seed-content';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -34,6 +35,7 @@ describe('leaderboard (contrato, RF-338 a RF-342, T018)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   describe('GET /api/v1/leaderboard', () => {

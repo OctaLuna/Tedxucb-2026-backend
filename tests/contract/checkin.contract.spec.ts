@@ -1,3 +1,4 @@
+import { seedTestEvent } from '../support/seed-events';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from '../support/test-app';
@@ -34,6 +35,7 @@ describe('Check-in de participación (contrato, RF-305 RF-311 a RF-321)', () => 
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedTestEvent();
   });
 
   async function setupStaffAndActivity(overrides: Parameters<typeof seedActivity>[0] = {}) {

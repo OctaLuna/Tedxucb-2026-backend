@@ -1,5 +1,5 @@
-import { Body, Controller, HttpCode, HttpStatus, Ip, Post, UseGuards } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, HttpCode, HttpStatus, Ip, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ApplicationsService } from './applications.service';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { RateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
@@ -14,8 +14,9 @@ export class PublicApplicationsController {
 
   @Post('applications')
   @HttpCode(HttpStatus.CREATED)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
   @RateLimit({ keyPrefix: 'public-applications', limit: 5, windowSeconds: 3600 })
-  async create(@Body() dto: CreateApplicationDto, @Ip() ip: string) {
-    return this.applicationsService.create(dto, ip);
+  async create(@Body() dto: CreateApplicationDto, @Ip() ip: string, @Query('eventSlug') eventSlug = 'tedxucb') {
+    return this.applicationsService.create(dto, ip, eventSlug);
   }
 }

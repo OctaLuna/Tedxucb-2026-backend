@@ -7,6 +7,7 @@ import { AppException } from '../../common/exceptions/app.exception';
 import { isUniqueConstraintViolation } from '../../common/utils/prisma-error.util';
 import { generateOpaqueToken } from '../../common/crypto/token-hash.util';
 import { ManualSelectionDto } from './dto/manual-selection.dto';
+import { EventAccessService } from '../event-access/event-access.service';
 
 /**
  * Tras ADR-009: sin máquina de estados de invitación, sin lista de espera.
@@ -18,6 +19,7 @@ export class SelectionService {
     private readonly prisma: PrismaService,
     private readonly leaderboard: LeaderboardService,
     private readonly mail: MailService,
+    private readonly eventAccess: EventAccessService,
   ) {}
 
   /**
@@ -26,8 +28,8 @@ export class SelectionService {
    * puntaje/posición, genera la entrada de cada uno -- todo en una sola
    * transacción, mismo rigor que el check-in de `003`.
    */
-  async execute(actorId: string) {
-    const event = await this.prisma.event.findFirst({ where: { status: 'PUBLISHED' } });
+  async execute(actorId: string, eventSlug = 'tedxucb') {
+    const event = await this.prisma.event.findFirst({ where: { slug: eventSlug, status: 'PUBLISHED' } });
     if (!event) {
       throw new AppException(404, 'EVENT_NOT_CONFIGURED', 'No hay un evento publicado configurado.');
     }
@@ -54,12 +56,12 @@ export class SelectionService {
     // de las plazas por ranking (one_active_selection_per_student no
     // admite duplicarlo) y se completa con el siguiente candidato.
     const alreadySelected = await this.prisma.selection.findMany({
-      where: { revokedAt: null, studentId: { not: null } },
+      where: { eventId: event.id, revokedAt: null, studentId: { not: null } },
       select: { studentId: true },
     });
     const alreadySelectedIds = new Set(alreadySelected.map((s) => s.studentId));
 
-    const candidates = await this.leaderboard.getLeaderboard({}, event.studentCapacity + alreadySelectedIds.size);
+    const candidates = await this.leaderboard.getLeaderboard({}, event.studentCapacity + alreadySelectedIds.size, eventSlug);
     const toSelect = candidates.data
       .filter((row) => !alreadySelectedIds.has(row.studentId))
       .slice(0, event.studentCapacity);
@@ -74,6 +76,7 @@ export class SelectionService {
         for (const row of toSelect) {
           const selection = await tx.selection.create({
             data: {
+              eventId: event.id,
               runId: run.id,
               source: 'RANKING',
               studentId: row.studentId,
@@ -125,10 +128,10 @@ export class SelectionService {
   }
 
   /** RF-408: revierte la ejecución activa, marca sus selecciones vivas en cascada -- nunca borra (Artículo IV en espíritu). */
-  async revert(reason: string | undefined, actorId: string) {
+  async revert(reason: string | undefined, actorId: string, eventSlug = 'tedxucb') {
     this.assertReason(reason);
 
-    const event = await this.prisma.event.findFirst({ where: { status: 'PUBLISHED' } });
+    const event = await this.prisma.event.findFirst({ where: { slug: eventSlug, status: 'PUBLISHED' } });
     const activeRun = event
       ? await this.prisma.selectionRun.findFirst({ where: { eventId: event.id, revertedAt: null } })
       : null;
@@ -163,8 +166,8 @@ export class SelectionService {
   }
 
   /** RF-407a: resultado activo con distribución por carrera/facultad. */
-  async getResult() {
-    const event = await this.prisma.event.findFirst({ where: { status: 'PUBLISHED' } });
+  async getResult(eventSlug = 'tedxucb') {
+    const event = await this.prisma.event.findFirst({ where: { slug: eventSlug, status: 'PUBLISHED' } });
     const run = event
       ? await this.prisma.selectionRun.findFirst({
           where: { eventId: event.id, revertedAt: null },
@@ -217,9 +220,11 @@ export class SelectionService {
   }
 
   /** RF-423: sin notificación proactiva -- el alumno mismo consulta si quedó seleccionado. */
-  async getMyEntry(studentId: string) {
+  async getMyEntry(studentId: string, eventSlug = 'tedxucb') {
+    const event = await this.prisma.event.findUnique({ where: { slug: eventSlug }, select: { id: true } });
+    if (!event) throw new AppException(404, 'EVENT_NOT_FOUND', 'Evento no encontrado.');
     const selection = await this.prisma.selection.findFirst({
-      where: { studentId, revokedAt: null },
+      where: { studentId, eventId: event.id, revokedAt: null },
     });
     if (!selection) {
       return { selected: false as const };
@@ -233,7 +238,7 @@ export class SelectionService {
   }
 
   /** RF-420 y el caso límite de cubrir a mano un lugar liberado -- ADR-009 las trata como la misma operación. */
-  async manualAssign(dto: ManualSelectionDto, actorId: string) {
+  async manualAssign(dto: ManualSelectionDto, actorId: string, eventSlug = 'tedxucb') {
     this.assertReason(dto.reason);
 
     let fullName = dto.fullName;
@@ -253,9 +258,11 @@ export class SelectionService {
       throw new AppException(400, 'CONTACT_REQUIRED', 'Sin studentId, fullName y email son obligatorios.');
     }
 
-    const event = await this.prisma.event.findFirst({ where: { status: 'PUBLISHED' } });
+    const event = await this.prisma.event.findFirst({ where: { slug: eventSlug, status: 'PUBLISHED' } });
+    if (!event) throw new AppException(404, 'EVENT_NOT_CONFIGURED', 'No hay un evento publicado configurado.');
+    if (dto.studentId) await this.eventAccess.assertEventAccess(dto.studentId, eventSlug);
     if (event?.capacity) {
-      const activeCount = await this.prisma.selection.count({ where: { revokedAt: null } });
+      const activeCount = await this.prisma.selection.count({ where: { eventId: event.id, revokedAt: null } });
       if (activeCount + 1 > event.capacity) {
         throw new AppException(422, 'CAPACITY_EXCEEDED', 'Asignar este lugar excede el aforo total del evento.');
       }
@@ -265,6 +272,7 @@ export class SelectionService {
       const selection = await this.prisma.$transaction(async (tx) => {
         const created = await tx.selection.create({
           data: {
+            eventId: event.id,
             source: 'MANUAL',
             studentId: dto.studentId,
             audienceType: dto.audienceType ?? (dto.studentId ? 'ESTUDIANTE' : 'INVITADO'),
@@ -303,10 +311,12 @@ export class SelectionService {
   }
 
   /** Libera el lugar de una persona ya seleccionada, sin revertir toda la ejecución. */
-  async revokeSelection(id: string, reason: string | undefined, actorId: string) {
+  async revokeSelection(id: string, reason: string | undefined, actorId: string, eventSlug = 'tedxucb') {
     this.assertReason(reason);
 
-    const selection = await this.prisma.selection.findUnique({ where: { id } });
+    const event = await this.prisma.event.findUnique({ where: { slug: eventSlug }, select: { id: true } });
+    if (!event) throw new AppException(404, 'EVENT_NOT_FOUND', 'Evento no encontrado.');
+    const selection = await this.prisma.selection.findFirst({ where: { id, eventId: event.id } });
     if (!selection) {
       throw new AppException(404, 'NOT_FOUND', 'Selección no encontrada.');
     }
@@ -329,9 +339,11 @@ export class SelectionService {
   }
 
   /** RF-421: lista final de asistentes, CSV con BOM UTF-8 (mismo formato que LeaderboardService.exportCsv). */
-  async exportCsv(actorId: string): Promise<string> {
+  async exportCsv(actorId: string, eventSlug = 'tedxucb'): Promise<string> {
+    const event = await this.prisma.event.findUnique({ where: { slug: eventSlug }, select: { id: true } });
+    if (!event) throw new AppException(404, 'EVENT_NOT_FOUND', 'Evento no encontrado.');
     const selections = await this.prisma.selection.findMany({
-      where: { revokedAt: null },
+      where: { eventId: event.id, revokedAt: null },
       include: { student: { include: { user: true, career: true } } },
       orderBy: { createdAt: 'asc' },
     });

@@ -9,19 +9,15 @@ import { detectImage } from './image-signature.util';
 export type UploadKind = 'avatars' | 'events' | 'speakers';
 
 /**
- * Sube a Vercel Blob cuando hay credenciales (producción); si no
- * (desarrollo/pruebas, sin cuenta de Vercel Blob ni emulador local
- * disponible), cae a disco local bajo ./uploads/<kind>/, servido por
- * main.ts solo en ese caso -- mismo principio de *fallback* por entorno
- * que MailService usa con QStash. La validación real (bytes, nunca el
- * mimetype del cliente -- ver image-signature.util.ts) y el renombrado a
- * UUID son iguales en ambos casos.
+ * Use Vercel Blob only in production with an explicit credential. Local
+ * development and tests write to ./uploads, even if .env contains a Blob
+ * token, so local verification cannot mutate remote storage by accident.
+ * Image validation and UUID naming are identical in both paths.
  */
 @Injectable()
 export class UploadService {
-  private readonly localDir: string | undefined = process.env.BLOB_READ_WRITE_TOKEN
-    ? undefined
-    : path.resolve('./uploads');
+  private readonly useBlob = process.env.NODE_ENV === 'production' && Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  private readonly localDir: string | undefined = this.useBlob ? undefined : path.resolve('./uploads');
 
   async upload(kind: UploadKind, buffer: Buffer | undefined): Promise<string> {
     if (!buffer || buffer.length === 0) {

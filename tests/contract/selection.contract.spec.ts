@@ -1,11 +1,13 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { MailService } from '../../src/common/mail/mail.service';
 import { createTestApp } from '../support/test-app';
 import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma-test-client';
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
 import { seedEvent } from '../support/seed-content';
+import { grantEventAccess } from '../support/seed-events';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -14,6 +16,11 @@ async function loginAs(app: INestApplication, email: string) {
   return response.body.accessToken as string;
 }
 
+async function seedStudentWithEventAccess(email: string) {
+  const result = await seedStudent({ email });
+  await grantEventAccess(result.user.email);
+  return result;
+}
 async function grantPoints(studentId: string, points: number) {
   await prismaTestClient.pointTransaction.create({ data: { studentId, points, type: 'BONUS', reason: 'seed' } });
   await prismaTestClient.studentProfile.update({ where: { userId: studentId }, data: { totalPoints: points } });
@@ -21,13 +28,18 @@ async function grantPoints(studentId: string, points: number) {
 
 describe('selection (contrato, RF-402 a RF-423 tras ADR-009, T010-T015)', () => {
   let app: INestApplication;
+  let enqueueSelectionNotification: jest.SpyInstance;
 
   beforeAll(async () => {
+    enqueueSelectionNotification = jest
+      .spyOn(MailService.prototype, 'enqueueSelectionNotification')
+      .mockResolvedValue(undefined);
     app = await createTestApp();
   });
 
   afterAll(async () => {
     await app.close();
+    enqueueSelectionNotification.mockRestore();
     await closeRedisTestClient();
     await closeTestDb();
   });
@@ -35,6 +47,7 @@ describe('selection (contrato, RF-402 a RF-423 tras ADR-009, T010-T015)', () => 
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   async function loginAdmin() {
@@ -233,7 +246,7 @@ describe('selection (contrato, RF-402 a RF-423 tras ADR-009, T010-T015)', () => 
 
     it('rechaza con 409 ALREADY_SELECTED si el alumno ya tiene una selección activa', async () => {
       const { token } = await loginAdmin();
-      const { user: student } = await seedStudent({ email: `ya-seleccionado-${Date.now()}@ucb.edu.bo` });
+      const { user: student } = await seedStudentWithEventAccess(`ya-seleccionado-${Date.now()}@ucb.edu.bo`);
       await request(app.getHttpServer())
         .post('/api/v1/selection/manual')
         .set('Authorization', `Bearer ${token}`)
@@ -252,8 +265,8 @@ describe('selection (contrato, RF-402 a RF-423 tras ADR-009, T010-T015)', () => 
   describe('POST /api/v1/selection/:id/revoke', () => {
     it('libera el lugar de un seleccionado sin afectar a los demás', async () => {
       const { token } = await loginAdmin();
-      const { user: a } = await seedStudent({ email: `revocar-a-${Date.now()}@ucb.edu.bo` });
-      const { user: b } = await seedStudent({ email: `revocar-b-${Date.now()}@ucb.edu.bo` });
+      const { user: a } = await seedStudentWithEventAccess(`revocar-a-${Date.now()}@ucb.edu.bo`);
+      const { user: b } = await seedStudentWithEventAccess(`revocar-b-${Date.now()}@ucb.edu.bo`);
       const selectionA = await request(app.getHttpServer())
         .post('/api/v1/selection/manual')
         .set('Authorization', `Bearer ${token}`)
@@ -276,7 +289,7 @@ describe('selection (contrato, RF-402 a RF-423 tras ADR-009, T010-T015)', () => 
 
     it('rechaza con 409 ALREADY_REVOKED un lugar ya liberado', async () => {
       const { token } = await loginAdmin();
-      const { user: student } = await seedStudent({ email: `doble-revoke-${Date.now()}@ucb.edu.bo` });
+      const { user: student } = await seedStudentWithEventAccess(`doble-revoke-${Date.now()}@ucb.edu.bo`);
       const created = await request(app.getHttpServer())
         .post('/api/v1/selection/manual')
         .set('Authorization', `Bearer ${token}`)
@@ -299,7 +312,7 @@ describe('selection (contrato, RF-402 a RF-423 tras ADR-009, T010-T015)', () => 
   describe('GET /api/v1/selection/export', () => {
     it('un ADMIN exporta CSV con encabezados', async () => {
       const { token } = await loginAdmin();
-      const { user: student } = await seedStudent({ email: `exportar-seleccion-${Date.now()}@ucb.edu.bo` });
+      const { user: student } = await seedStudentWithEventAccess(`exportar-seleccion-${Date.now()}@ucb.edu.bo`);
       await request(app.getHttpServer())
         .post('/api/v1/selection/manual')
         .set('Authorization', `Bearer ${token}`)

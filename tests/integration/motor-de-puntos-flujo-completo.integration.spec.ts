@@ -7,6 +7,8 @@ import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
 import { seedActivity, seedActivityStaff } from '../support/seed-activities';
 import { QrTokenService } from '../../src/modules/activities/qr-token.service';
+import { seedEvent } from '../support/seed-content';
+import { grantEventAccess } from '../support/seed-events';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -53,12 +55,14 @@ describe('Motor de puntos -- integración cruzada de los tres módulos (Grupo 7)
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   it('T080 -- ciclo completo: crear, publicar, asignar staff, escanear, y el punto se ve en /me/points, /leaderboard y /me/progress', async () => {
     const admin = await seedUser({ email: `admin-flujo-${Date.now()}@ucb.edu.bo`, roles: ['ADMIN'] });
     const adminToken = await loginAs(app, admin.email);
     const staff = await seedUser({ email: `staff-flujo-${Date.now()}@ucb.edu.bo`, roles: ['STAFF'] });
+    await grantEventAccess(staff.email);
     const staffToken = await loginAs(app, staff.email);
     const { user: student } = await seedStudent({ email: `alumno-flujo-${Date.now()}@ucb.edu.bo` });
     const studentToken = await loginAs(app, student.email);

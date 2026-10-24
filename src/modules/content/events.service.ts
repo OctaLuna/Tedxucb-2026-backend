@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AppException } from '../../common/exceptions/app.exception';
-import { isUniqueConstraintViolation } from '../../common/utils/prisma-error.util';
 import { UploadService } from '../../common/upload/upload.service';
 import { UpdateEventDto } from './dto/update-event.dto';
+import { EventAccessService } from '../event-access/event-access.service';
 
 export interface UploadedEventImageFile {
   buffer: Buffer;
@@ -14,6 +14,7 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploadService: UploadService,
+    private readonly eventAccess: EventAccessService,
   ) {}
 
   /**
@@ -21,9 +22,9 @@ export class EventsService {
    * y serverTime, ambos calculados acá, para que el cliente reste contra
    * dos valores del servidor y nunca dependa de su propio reloj.
    */
-  async getPublicSnapshot() {
-    const event = await this.prisma.event.findFirst({ where: { status: 'PUBLISHED' } });
-    if (!event) {
+  async getPublicSnapshot(slug = 'tedxucb') {
+    const event = await this.prisma.event.findUnique({ where: { slug } });
+    if (!event || event.status !== 'PUBLISHED') {
       throw new AppException(404, 'EVENT_NOT_CONFIGURED', 'No hay un evento publicado configurado.');
     }
 
@@ -33,6 +34,7 @@ export class EventsService {
     return {
       event: {
         id: event.id,
+        slug: event.slug,
         name: event.name,
         tagline: event.tagline,
         startsAt: event.startsAt.toISOString(),
@@ -45,9 +47,13 @@ export class EventsService {
     };
   }
 
-  /** En la práctica, una sola fila -- sin paginar (Artículo VI, plan.md de 002). */
-  list() {
-    return this.prisma.event.findMany({ orderBy: { createdAt: 'asc' } });
+  /** Lista solo los eventos a los que el administrador tiene scope activo. */
+  async list(userId: string) {
+    const { data: allowedEvents } = await this.eventAccess.eventsForUser(userId);
+    return this.prisma.event.findMany({
+      where: { id: { in: allowedEvents.map(({ id }) => id) } },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
   async getById(id: string) {
@@ -72,22 +78,11 @@ export class EventsService {
       updatedById: actorId,
     };
 
-    try {
-      const updated = await this.prisma.event.update({ where: { id }, data });
-      await this.prisma.auditLog.create({
-        data: { actorId, action: 'EVENT_UPDATED', entityType: 'event', entityId: id, detail: { ...dto } },
-      });
-      return updated;
-    } catch (error) {
-      if (isUniqueConstraintViolation(error, 'one_published_event')) {
-        throw new AppException(
-          409,
-          'ANOTHER_EVENT_ALREADY_PUBLISHED',
-          'Ya existe otro evento publicado. Despublica el actual antes de publicar este.',
-        );
-      }
-      throw error;
-    }
+    const updated = await this.prisma.event.update({ where: { id }, data });
+    await this.prisma.auditLog.create({
+      data: { actorId, action: 'EVENT_UPDATED', entityType: 'event', entityId: id, detail: { ...dto } },
+    });
+    return updated;
   }
 
   /**

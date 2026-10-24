@@ -6,38 +6,43 @@
   "scripts": {
     "start": "nest start",
     "start:dev": "nest start --watch",
+    "start:local": "cross-env DATABASE_URL=postgresql://ted_test:local_test_only@127.0.0.1:55432/ted_backend_local?schema=public DIRECT_URL=postgresql://ted_test:local_test_only@127.0.0.1:55432/ted_backend_local?schema=public REDIS_URL=redis://127.0.0.1:56379/1 NODE_ENV=development PORT=3100 CORS_ORIGIN=http://localhost:5173,http://localhost:3000 JWT_SECRET=local-only-jwt-secret-with-32-characters-minimum QR_TOKEN_SECRET=local-only-qr-secret-with-32-characters-minimum AVATAR_BRIDGE_SECRET=local-only-avatar-bridge-secret-with-32-characters PUBLIC_FRONTEND_URL_TEDX=http://localhost:3000 PUBLIC_FRONTEND_URL_INNOVATION_WEEK=http://localhost:5173 nest start",
+    "test:migrations:local": "node scripts/test-event-scope-migrations.mjs",
     "build": "nest build",
+    "migrate:local": "ts-node scripts/migrate-local.ts",
     "vercel-build": "prisma generate && nest build",
     "postinstall": "prisma generate",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:local": "cross-env DATABASE_URL=postgresql://ted_test:local_test_only@127.0.0.1:55432/ted_integration_test?schema=public DIRECT_URL=postgresql://ted_test:local_test_only@127.0.0.1:55432/ted_integration_test?schema=public REDIS_URL=redis://127.0.0.1:56379 npm test --",
     "test:e2e": "playwright test",
     "points-cli": "ts-node src/cli/points-cli.ts"
   },
   "dependencies": {
-    "@nestjs/common": "10.4.22",
+    "@nestjs/common": "11.1.29",
     "@nestjs/config": "4.0.4",
-    "@nestjs/core": "10.4.22",
-    "@nestjs/jwt": "10.2.0",
-    "@nestjs/platform-express": "10.4.22",
-    "@nestjs/swagger": "8.1.1",
+    "@nestjs/core": "11.1.29",
+    "@nestjs/jwt": "11.0.2",
+    "@nestjs/platform-express": "11.2.8",
+    "@nestjs/swagger": "11.4.7",
     "@prisma/adapter-pg": "^7.10.0",
-    "@prisma/client": "7.10.0",
+    "@prisma/client": "7.10.1",
     "@upstash/qstash": "^2.7.20",
-    "@vercel/blob": "^0.27.1",
+    "@vercel/blob": "2.8.2",
     "argon2": "^0.45.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "google-auth-library": "^11.3.1",
     "helmet": "^8.3.0",
     "ioredis": "^6.0.0",
-    "nodemailer": "^9.1.1",
+    "nodemailer": "10.2.1",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@nestjs/cli": "10.4.9",
-    "@nestjs/testing": "10.4.22",
+    "@nestjs/cli": "11.0.24",
+    "@nestjs/testing": "11.1.29",
     "@playwright/test": "^1.48.0",
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.2.0",
@@ -46,11 +51,18 @@
     "@types/supertest": "^7.2.1",
     "cross-env": "^10.1.0",
     "jest": "^30.5.0",
-    "prisma": "7.10.0",
+    "prisma": "7.10.1",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.12",
     "ts-node": "^10.9.2",
     "typescript": "5.9.3"
+  },
+  "overrides": {
+    "@prisma/dev": {
+      "ajv": "8.20.0"
+    },
+    "js-yaml": "5.5.0",
+    "qs": "6.16.1"
   },
   "engines": {
     "node": "24.x"
@@ -60,6 +72,8 @@
   },
   "jest": {
     "maxWorkers": 1,
+      "workerIdleMemoryLimit": "1GB",
+    "testTimeout": 30000,
     "moduleFileExtensions": [
       "js",
       "json",

@@ -50,7 +50,7 @@ export function parseReconcileArgs(argv: string[]): ReconcileArgs {
   return args;
 }
 
-function printReport(report: ReconciliationReport | ReconciliationReport[]): void {
+function printReport(report: unknown): void {
   console.log(JSON.stringify(report, null, 2));
 }
 
@@ -77,24 +77,36 @@ async function runReconcile(args: ReconcileArgs): Promise<void> {
       if (!student) {
         throw new Error(`No existe ningún alumno con código ${args.student}.`);
       }
-      const report =
-        args.fix && !(await reconciliation.checkStudent(student.userId)).consistent
-          ? await reconciliation.fixStudent(student.userId, operatorId as string)
-          : await reconciliation.checkStudent(student.userId);
-      printReport(report);
+      const profileReport = await reconciliation.checkStudent(student.userId);
+      const eventDiscrepancies = await reconciliation.checkEventProjection(student.userId);
+      if (args.fix && (!profileReport.consistent || eventDiscrepancies.length > 0)) {
+        await reconciliation.fixStudent(student.userId, operatorId as string);
+      }
+      printReport({
+        profile: await reconciliation.checkStudent(student.userId),
+        eventPoints: await reconciliation.checkEventProjection(student.userId),
+      });
       return;
     }
 
     const discrepancies = await reconciliation.checkAll();
+    const eventDiscrepancies = await reconciliation.checkEventProjection();
     if (args.fix) {
+      const affectedStudents = new Set([
+        ...discrepancies.map((discrepancy) => discrepancy.studentId),
+        ...eventDiscrepancies.map((discrepancy) => discrepancy.studentId),
+      ]);
       const fixed: ReconciliationReport[] = [];
-      for (const discrepancy of discrepancies) {
-        fixed.push(await reconciliation.fixStudent(discrepancy.studentId, operatorId as string));
+      for (const affectedStudent of affectedStudents) {
+        fixed.push(await reconciliation.fixStudent(affectedStudent, operatorId as string));
       }
-      printReport(fixed);
+      printReport({
+        profiles: fixed,
+        eventPoints: await reconciliation.checkEventProjection(),
+      });
       return;
     }
-    printReport(discrepancies);
+    printReport({ profiles: discrepancies, eventPoints: eventDiscrepancies });
   } finally {
     await app.close();
   }

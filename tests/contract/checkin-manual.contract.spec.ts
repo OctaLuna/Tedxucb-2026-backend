@@ -1,3 +1,4 @@
+import { seedTestEvent } from '../support/seed-events';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from '../support/test-app';
@@ -30,6 +31,7 @@ describe('Check-in manual (contrato, RF-319, T012)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedTestEvent();
   });
 
   async function setupStaffAndActivity() {

@@ -10,9 +10,14 @@ import { OneTimeTokenService } from './one-time-token.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import type { EnvConfig } from '../../config/env.validation';
+import { GoogleAuthService } from './google-auth.service';
+import { MailModule } from '../../common/mail/mail.module';
+import { AvatarBridgeTokenService } from './avatar-bridge-token.service';
+import { ConfiguredAdminAccessService } from './configured-admin-access.service';
 
 @Module({
   imports: [
+    MailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -24,6 +29,9 @@ import type { EnvConfig } from '../../config/env.validation';
   controllers: [AuthController, MeController],
   providers: [
     AuthService,
+    GoogleAuthService,
+    AvatarBridgeTokenService,
+    ConfiguredAdminAccessService,
     PasswordHashingService,
     TokenPairService,
     OneTimeTokenService,
@@ -36,6 +44,7 @@ import type { EnvConfig } from '../../config/env.validation';
     OneTimeTokenService,
     JwtAuthGuard,
     RolesGuard,
+    GoogleAuthService,
     JwtModule,
   ],
 })

@@ -9,6 +9,7 @@ import { QrTokenService } from './qr-token.service';
 import { ACTIVITY_STATUS, ATTENDANCE_METHOD } from './activities.constants';
 import { CheckinDto } from './dto/checkin.dto';
 import { ManualCheckinDto } from './dto/manual-checkin.dto';
+import { EventAccessService } from '../event-access/event-access.service';
 
 interface PerformCheckinInput {
   activityId: string;
@@ -36,6 +37,7 @@ export class CheckinService {
     private readonly qrTokenService: QrTokenService,
     private readonly ledger: LedgerService,
     private readonly mail: MailService,
+    private readonly eventAccess: EventAccessService,
   ) {}
 
   async checkinByScan(activityId: string, staffId: string, dto: CheckinDto, ipAddress: string | undefined) {
@@ -89,6 +91,7 @@ export class CheckinService {
     if (!activity) {
       throw new AppException(404, 'NOT_FOUND', 'Actividad no encontrada.');
     }
+    await this.eventAccess.assertEventIdAccess(input.studentId, activity.eventId);
     const now = new Date();
     if (
       activity.status !== ACTIVITY_STATUS.PUBLISHED ||
@@ -124,6 +127,7 @@ export class CheckinService {
 
         // Paso 4: INSERT point_transactions + bloqueo + UPDATE total_points.
         const newTransaction = await this.ledger.recordMovement(tx, {
+          eventId: activity.eventId,
           studentId: input.studentId,
           points: activity.pointsValue, // valor CAPTURADO -- RF-306
           type: 'ACTIVITY',

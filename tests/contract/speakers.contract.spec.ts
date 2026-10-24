@@ -4,7 +4,7 @@ import { createTestApp } from '../support/test-app';
 import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma-test-client';
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
-import { seedSpeaker, completeSpeakerFields } from '../support/seed-speakers';
+import { seedSpeaker, seedTestEvent, completeSpeakerFields } from '../support/seed-speakers';
 import { MINIMAL_VALID_PNG } from '../support/fixtures';
 
 async function loginAs(app: INestApplication, email: string) {
@@ -32,6 +32,7 @@ describe('Speakers (contrato, RF-206 a RF-209, RF-217)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedTestEvent();
   });
 
   describe('GET /api/v1/public/speakers', () => {
@@ -59,6 +60,17 @@ describe('Speakers (contrato, RF-206 a RF-209, RF-217)', () => {
       const response = await request(app.getHttpServer()).get('/api/v1/public/speakers');
       expect(response.status).toBe(200);
       expect(response.body.map((s: { id: string }) => s.id)).toEqual([first.id, second.id]);
+    });
+
+    it('separa speakers publicados usando eventSlug', async () => {
+      const tedx = await seedSpeaker({ status: 'PUBLISHED', ...completeSpeakerFields() });
+      const week = await seedSpeaker({ eventSlug: 'innovation-week', status: 'PUBLISHED', ...completeSpeakerFields() });
+
+      const tedxResponse = await request(app.getHttpServer()).get('/api/v1/public/speakers?eventSlug=tedxucb');
+      const weekResponse = await request(app.getHttpServer()).get('/api/v1/public/speakers?eventSlug=innovation-week');
+
+      expect(tedxResponse.body.map((s: { id: string }) => s.id)).toEqual([tedx.id]);
+      expect(weekResponse.body.map((s: { id: string }) => s.id)).toEqual([week.id]);
     });
 
     it('rechaza con 429 TOO_MANY_REQUESTS al superar el límite de frecuencia', async () => {

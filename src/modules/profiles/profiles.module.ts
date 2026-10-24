@@ -11,9 +11,10 @@ import { ProfileService } from './profile.service';
 import { StudentsService } from './students.service';
 import { CatalogService } from './catalog.service';
 import { ConsentVersionsService } from './consent-versions.service';
+import { EventAccessModule } from '../event-access/event-access.module';
 
 @Module({
-  imports: [AuthModule, UploadModule],
+  imports: [AuthModule, UploadModule, EventAccessModule],
   controllers: [
     MeProfileController,
     StudentsController,

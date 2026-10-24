@@ -23,6 +23,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AccessTokenPayload } from '../auth/token-pair.service';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EVENT_IMAGE_MAX_BYTES } from './content.constants';
+import { EventIdAccessGuard } from '../event-access/event-id-access.guard';
 
 /** Sin POST (crear) ni DELETE: la fila nace por semilla (data-model.md §6). */
 @ApiTags('content')
@@ -34,16 +35,18 @@ export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Get()
-  list() {
-    return this.eventsService.list();
+  list(@CurrentUser() actor: AccessTokenPayload) {
+    return this.eventsService.list(actor.sub);
   }
 
   @Get(':id')
+  @UseGuards(EventIdAccessGuard)
   detail(@Param('id', ParseUUIDPipe) id: string) {
     return this.eventsService.getById(id);
   }
 
   @Patch(':id')
+  @UseGuards(EventIdAccessGuard)
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateEventDto,
@@ -53,6 +56,7 @@ export class EventsController {
   }
 
   @Post(':id/image')
+  @UseGuards(EventIdAccessGuard)
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(
     FileInterceptor('file', {

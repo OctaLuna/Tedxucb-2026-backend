@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { prismaTestClient, cleanAllTables, closeTestDb } from '../support/prisma-test-client';
 import { seedStudent } from '../support/seed-catalog';
+import { seedEvent } from '../support/seed-content';
 
 /**
  * Prisma directo contra Postgres real, sin pasar por el servicio -- prueba
@@ -9,6 +10,7 @@ import { seedStudent } from '../support/seed-catalog';
 describe('Restricciones del motor — point_transactions (T037, parte de points)', () => {
   beforeEach(async () => {
     await cleanAllTables();
+    await seedEvent();
   });
 
   afterAll(async () => {

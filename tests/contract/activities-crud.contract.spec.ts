@@ -1,3 +1,4 @@
+import { seedTestEvent } from '../support/seed-events';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from '../support/test-app';
@@ -46,6 +47,20 @@ describe('CRUD de actividades (contrato, RF-301 a RF-310c)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedTestEvent();
+  });
+
+  describe('GET /api/v1/public/activities', () => {
+    it('exposes only published activities for the requested event without a session', async () => {
+      const tedx = await seedActivity({ title: 'TEDx session', status: 'PUBLISHED' });
+      const week = await seedActivity({ title: 'Innovation panel', status: 'PUBLISHED', eventSlug: 'innovation-week' });
+      await seedActivity({ title: 'Draft session', status: 'DRAFT', eventSlug: 'innovation-week' });
+
+      const response = await request(app.getHttpServer()).get('/api/v1/public/activities?eventSlug=innovation-week');
+      expect(response.status).toBe(200);
+      expect(response.body.data.map((row: { id: string }) => row.id)).toEqual([week.id]);
+      expect(response.body.data.map((row: { id: string }) => row.id)).not.toContain(tedx.id);
+    });
   });
 
   describe('GET /api/v1/activities', () => {
@@ -67,6 +82,18 @@ describe('CRUD de actividades (contrato, RF-301 a RF-310c)', () => {
       expect(response.status).toBe(200);
       expect(response.body.data).toHaveLength(1);
       expect(response.body.data[0].status).toBe('PUBLISHED');
+    });
+
+    it('separa actividades por evento', async () => {
+      const { user: student } = await seedStudent({ email: 'alumno-eventos@ucb.edu.bo' });
+      const token = await loginAs(app, student.email);
+      const tedx = await seedActivity({ title: 'TEDx session', status: 'PUBLISHED' });
+      const week = await seedActivity({ title: 'Innovation panel', status: 'PUBLISHED', eventSlug: 'innovation-week' });
+
+      const response = await request(app.getHttpServer()).get('/api/v1/activities?eventSlug=innovation-week')
+        .set('Authorization', `Bearer ${token}`);
+      expect(response.body.data.map((row: { id: string }) => row.id)).toEqual([week.id]);
+      expect(response.body.data.map((row: { id: string }) => row.id)).not.toContain(tedx.id);
     });
 
     it('un ADMIN ve todas, y puede filtrar por status', async () => {

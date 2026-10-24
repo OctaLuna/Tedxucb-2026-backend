@@ -5,6 +5,7 @@ import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
+import { seedEvent } from '../support/seed-content';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -29,6 +30,7 @@ describe('POST /api/v1/points/:transactionId/reverse (contrato, RF-325 RF-326, T
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   async function grantBonus(token: string, studentId: string, points = 15) {

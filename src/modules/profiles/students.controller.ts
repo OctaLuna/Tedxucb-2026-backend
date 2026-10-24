@@ -1,11 +1,12 @@
 import { Controller, Get, Header, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { StudentsService } from './students.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AccessTokenPayload } from '../auth/token-pair.service';
+import { EventAccessGuard } from '../event-access/event-access.guard';
 
 /**
  * `users` ya declara @Controller('students') con GET 'pending' y POST
@@ -25,12 +26,13 @@ import type { AccessTokenPayload } from '../auth/token-pair.service';
 @ApiTags('profiles')
 @ApiBearerAuth()
 @Controller('students')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, EventAccessGuard)
 @Roles('ADMIN')
 export class StudentsController {
   constructor(private readonly studentsService: StudentsService) {}
 
   @Get()
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
   async list(
     @Query('career') career?: string,
     @Query('faculty') faculty?: string,
@@ -38,6 +40,7 @@ export class StudentsController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('eventSlug') eventSlug = 'tedxucb',
   ) {
     return this.studentsService.list({
       career,
@@ -46,10 +49,12 @@ export class StudentsController {
       search,
       page: Number(page) || 1,
       limit: Number(limit) || 20,
+      eventSlug,
     });
   }
 
   @Get('export')
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="alumnos.csv"')
   async export(
@@ -58,12 +63,14 @@ export class StudentsController {
     @Query('status') status: string | undefined,
     @Query('search') search: string | undefined,
     @CurrentUser() actor: AccessTokenPayload,
+    @Query('eventSlug') eventSlug = 'tedxucb',
   ) {
-    return this.studentsService.exportCsv({ career, faculty, status, search }, actor.sub);
+    return this.studentsService.exportCsv({ career, faculty, status, search, eventSlug }, actor.sub);
   }
 
   @Get(':id')
-  async detail(@Param('id', ParseUUIDPipe) id: string) {
-    return this.studentsService.detail(id);
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  async detail(@Param('id', ParseUUIDPipe) id: string, @Query('eventSlug') eventSlug = 'tedxucb') {
+    return this.studentsService.detail(id, eventSlug);
   }
 }

@@ -5,6 +5,7 @@ import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { completeSpeakerFields } from '../support/seed-speakers';
+import { seedEvent } from '../support/seed-content';
 import { MINIMAL_VALID_PNG } from '../support/fixtures';
 
 async function loginAs(app: INestApplication, email: string) {
@@ -30,6 +31,7 @@ describe('Historia 3 completa: fichas de speaker (T072)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   it('vacío -> crear incompleto -> publicar rechazado -> completar -> publicar -> aparece -> despublicar -> desaparece sin borrarse', async () => {

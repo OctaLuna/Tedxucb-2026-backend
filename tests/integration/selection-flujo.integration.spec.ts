@@ -42,6 +42,7 @@ describe('selection -- integración de flujo (T062, T064)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   it('T062 -- revertir y volver a ejecutar produce una nueva selección; la anterior sigue visible y auditada como revertida', async () => {

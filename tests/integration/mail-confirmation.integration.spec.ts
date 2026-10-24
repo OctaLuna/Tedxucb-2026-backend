@@ -4,6 +4,7 @@ import { cleanAllTables, closeTestDb } from '../support/prisma-test-client';
 import { closeRedisTestClient } from '../support/redis-test-client';
 import { clearMailpit, waitForMailpitMessage } from '../support/mailpit-client';
 import { ApplicationsService } from '../../src/modules/speakers/applications.service';
+import { seedEvent } from '../support/seed-content';
 
 /**
  * Sin mocks (Artículo IX): invoca ApplicationsService directo (sin HTTP,
@@ -29,6 +30,7 @@ describe('Confirmación de postulación por correo (integración, sin mocks)', (
   beforeEach(async () => {
     await cleanAllTables();
     await clearMailpit();
+    await seedEvent();
   });
 
   it('encola y entrega un correo real con el nombre del postulante', async () => {

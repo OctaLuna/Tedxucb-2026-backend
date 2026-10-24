@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { AppException } from '../../../common/exceptions/app.exception';
+import { EventAccessService } from '../../event-access/event-access.service';
 import type { AuthenticatedRequest } from '../../auth/guards/jwt-auth.guard';
 
 /**
@@ -12,7 +13,7 @@ import type { AuthenticatedRequest } from '../../auth/guards/jwt-auth.guard';
  */
 @Injectable()
 export class ActivityStaffGuard implements CanActivate {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly eventAccess: EventAccessService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
@@ -23,11 +24,13 @@ export class ActivityStaffGuard implements CanActivate {
 
     const assignment = await this.prisma.activityStaff.findUnique({
       where: { activityId_userId: { activityId, userId } },
+      include: { activity: { select: { eventId: true } } },
     });
 
     if (!assignment) {
       throw new AppException(403, 'STAFF_NOT_ASSIGNED', 'No estás asignado a esta actividad.');
     }
+    await this.eventAccess.assertEventIdAccess(userId, assignment.activity.eventId);
     return true;
   }
 }

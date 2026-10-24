@@ -5,6 +5,7 @@ import { AppException } from '../../common/exceptions/app.exception';
 import { isUniqueConstraintViolation } from '../../common/utils/prisma-error.util';
 import { CreatePointAdjustmentDto } from './dto/create-adjustment.dto';
 import { ReverseTransactionDto } from './dto/reverse-transaction.dto';
+import { EventAccessService } from '../event-access/event-access.service';
 
 /**
  * RF-330: ajustes y reversiones administrativas, siempre con motivo,
@@ -16,9 +17,10 @@ export class PointsAdjustmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
+    private readonly eventAccess: EventAccessService,
   ) {}
 
-  async createAdjustment(dto: CreatePointAdjustmentDto, actorId: string) {
+  async createAdjustment(dto: CreatePointAdjustmentDto, actorId: string, eventSlug = 'tedxucb') {
     this.assertReason(dto.reason);
     if (dto.points === 0) {
       throw new AppException(400, 'ZERO_POINTS', 'El movimiento no puede ser de cero puntos.');
@@ -29,10 +31,15 @@ export class PointsAdjustmentsService {
       throw new AppException(404, 'NOT_FOUND', 'Alumno no encontrado.');
     }
 
+    const event = await this.prisma.event.findUnique({ where: { slug: eventSlug }, select: { id: true } });
+    if (!event) throw new AppException(404, 'EVENT_NOT_FOUND', 'Evento no encontrado.');
+    await this.eventAccess.assertEventAccess(dto.studentId, eventSlug);
+
     return this.prisma.$transaction(async (tx) => {
       const before = await tx.studentProfile.findUniqueOrThrow({ where: { userId: dto.studentId } });
 
       const transaction = await this.ledger.recordMovement(tx, {
+        eventId: event.id,
         studentId: dto.studentId,
         points: dto.points,
         type: dto.type,
@@ -57,7 +64,7 @@ export class PointsAdjustmentsService {
     });
   }
 
-  async reverseTransaction(transactionId: string, dto: ReverseTransactionDto, actorId: string) {
+  async reverseTransaction(transactionId: string, dto: ReverseTransactionDto, actorId: string, eventSlug = 'tedxucb') {
     this.assertReason(dto.reason);
 
     const original = await this.prisma.pointTransaction.findUnique({
@@ -67,6 +74,13 @@ export class PointsAdjustmentsService {
     if (!original) {
       throw new AppException(404, 'NOT_FOUND', 'Movimiento no encontrado.');
     }
+    const event = await this.prisma.event.findUnique({ where: { slug: eventSlug }, select: { id: true } });
+    if (!event) throw new AppException(404, 'EVENT_NOT_FOUND', 'Evento no encontrado.');
+    const owner = await this.prisma.pointTransactionEventOwnership.findUnique({
+      where: { pointTransactionId: original.id }, select: { eventId: true },
+    });
+    const originalEventId = owner?.eventId ?? (await this.prisma.event.findUnique({ where: { slug: 'tedxucb' }, select: { id: true } }))?.id;
+    if (originalEventId !== event.id) throw new AppException(404, 'NOT_FOUND', 'Movimiento no encontrado.');
     if (original.type === 'REVERSAL') {
       throw new AppException(
         422,
