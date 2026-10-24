@@ -1,0 +1,35 @@
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ted_test
+      POSTGRES_PASSWORD: local_test_only
+      POSTGRES_DB: ted_integration_test
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - ./tests/support/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ted_test -d ted_integration_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  mailpit-test:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

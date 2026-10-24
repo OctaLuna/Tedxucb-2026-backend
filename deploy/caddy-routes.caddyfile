@@ -1,0 +1,42 @@
+tedxucb.sis-ucb.site {
+	encode gzip zstd
+	@swagger path /api/docs*
+	handle @swagger {
+		respond 404
+	}
+	handle /api/v1/* {
+		reverse_proxy backend:3000
+	}
+	handle /uploads/* {
+		reverse_proxy backend:3000
+	}
+	handle {
+		reverse_proxy tedx-web:3000
+	}
+}
+
+semana-fcef.sis-ucb.site {
+	encode gzip zstd
+	@swagger path /api/docs*
+	handle @swagger {
+		respond 404
+	}
+	handle /api/v1/* {
+		reverse_proxy backend:3000
+	}
+	handle /uploads/* {
+		reverse_proxy backend:3000
+	}
+	redir /avatar /avatar/ 308
+	@avatarApi path /avatar/api/*
+	handle @avatarApi {
+		uri strip_prefix /avatar/api
+		reverse_proxy avatar-service:4002
+	}
+	handle_path /avatar/* {
+		reverse_proxy avatar-editor:80
+	}
+	handle {
+		reverse_proxy innovation-web:80
+	}
+}
