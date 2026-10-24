@@ -1,5 +1,5 @@
-import { Controller, Get, Header, UseGuards } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Header, Query, UseGuards } from '@nestjs/common';
+import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { EventsService } from './events.service';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { RateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
@@ -16,7 +16,8 @@ export class PublicEventController {
   // serverTime pierde su propósito si la respuesta se cachea (RF-204, ver
   // contracts/evento-y-cuenta-regresiva.md).
   @Header('Cache-Control', 'no-store')
-  async getPublicEvent() {
-    return this.eventsService.getPublicSnapshot();
+  @ApiQuery({ name: 'slug', required: false, example: 'innovation-week' })
+  async getPublicEvent(@Query('slug') slug = 'tedxucb') {
+    return this.eventsService.getPublicSnapshot(slug);
   }
 }

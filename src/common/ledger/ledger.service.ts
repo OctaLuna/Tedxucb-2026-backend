@@ -4,6 +4,7 @@ import type { Prisma, PointTransaction } from '@prisma/client';
 export type LedgerTransactionType = 'ACTIVITY' | 'BONUS' | 'PENALTY' | 'ADJUSTMENT' | 'REVERSAL';
 
 export interface RecordMovementInput {
+  eventId: string;
   studentId: string;
   points: number;
   type: LedgerTransactionType;
@@ -39,8 +40,10 @@ export class LedgerService {
    * alumno (skill motor-de-puntos, Invariante 5).
    */
   async recordMovement(tx: Prisma.TransactionClient, input: RecordMovementInput): Promise<PointTransaction> {
+    const { eventId, ...transactionInput } = input;
+    await tx.$queryRaw`SELECT set_config('ted.event_id', ${eventId}, true)`;
     const transaction = await tx.pointTransaction.create({
-      data: input as Prisma.PointTransactionUncheckedCreateInput,
+      data: transactionInput as Prisma.PointTransactionUncheckedCreateInput,
     });
 
     await tx.$queryRaw`SELECT 1 FROM student_profiles WHERE user_id = ${input.studentId}::uuid FOR UPDATE`;
@@ -67,8 +70,12 @@ export class LedgerService {
     originalId: string,
     input: ReverseMovementInput,
   ): Promise<PointTransaction> {
-    const original = await tx.pointTransaction.findUniqueOrThrow({ where: { id: originalId } });
+    const original = await tx.pointTransaction.findUniqueOrThrow({
+      where: { id: originalId }, include: { eventOwnership: true },
+    });
+    const eventId = original.eventOwnership?.eventId ?? (await tx.event.findUniqueOrThrow({ where: { slug: 'tedxucb' } })).id;
     return this.recordMovement(tx, {
+      eventId,
       studentId: original.studentId,
       points: -original.points,
       type: 'REVERSAL',

@@ -13,13 +13,15 @@ export class EntriesService {
    * un SELECT previo -- mismo principio que
    * ApplicationsService.convertToSpeaker (002) y el check-in de `003`.
    */
-  async scan(entryCode: string, staffId: string) {
+  async scan(entryCode: string, staffId: string, eventSlug = 'tedxucb') {
     return this.prisma.$transaction(async (tx) => {
+      const event = await tx.event.findUnique({ where: { slug: eventSlug }, select: { id: true } });
+      if (!event) throw new AppException(404, 'EVENT_NOT_FOUND', 'Evento no encontrado.');
       const selection = await tx.selection.findUnique({
         where: { entryCode },
         include: { student: { include: { user: true } }, entryValidatedBy: true },
       });
-      if (!selection || selection.revokedAt) {
+      if (!selection || selection.eventId !== event.id || selection.revokedAt) {
         throw new AppException(404, 'INVALID_ENTRY', 'El código no corresponde a ninguna entrada válida.');
       }
 
@@ -44,13 +46,13 @@ export class EntriesService {
   }
 
   /** RF-419: aforo ocupado en tiempo real. */
-  async liveCount() {
-    const event = await this.prisma.event.findFirst({ where: { status: 'PUBLISHED' } });
+  async liveCount(eventSlug = 'tedxucb') {
+    const event = await this.prisma.event.findFirst({ where: { slug: eventSlug, status: 'PUBLISHED' } });
 
     const [entered, studentsEntered] = await Promise.all([
-      this.prisma.selection.count({ where: { revokedAt: null, entryUsedAt: { not: null } } }),
+      this.prisma.selection.count({ where: { eventId: event?.id, revokedAt: null, entryUsedAt: { not: null } } }),
       this.prisma.selection.count({
-        where: { revokedAt: null, entryUsedAt: { not: null }, source: 'RANKING' },
+        where: { eventId: event?.id, revokedAt: null, entryUsedAt: { not: null }, source: 'RANKING' },
       }),
     ]);
 

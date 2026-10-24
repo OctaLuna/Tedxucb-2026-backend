@@ -5,6 +5,7 @@ import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedContentBlock } from '../support/seed-content';
+import { seedEvent } from '../support/seed-content';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -52,10 +53,28 @@ describe('Bloques de contenido (contrato, RF-202 RF-203)', () => {
     expect(missing.body.error).toBe('NOT_FOUND');
   });
 
+  it('separa bloques por evento y permite reutilizar la misma clave sin cruzar contenido', async () => {
+    await seedEvent({ slug: 'tedxucb', name: 'TEDxUCB', status: 'PUBLISHED' });
+    await seedEvent({ slug: 'innovation-week', name: 'Semana de la Facultad', status: 'PUBLISHED' });
+    await seedContentBlock({ eventSlug: 'tedxucb', key: 'linea_tematica', body: 'Contenido TEDx' });
+    await seedContentBlock({ eventSlug: 'innovation-week', key: 'linea_tematica', body: 'Contenido Semana' });
+
+    const tedx = await request(app.getHttpServer()).get('/api/v1/content-blocks?eventSlug=tedxucb');
+    const innovation = await request(app.getHttpServer()).get('/api/v1/content-blocks?eventSlug=innovation-week');
+    const compatibility = await request(app.getHttpServer()).get('/api/v1/content-blocks');
+
+    expect(tedx.body).toHaveLength(1);
+    expect(tedx.body[0].body).toBe('Contenido TEDx');
+    expect(innovation.body).toHaveLength(1);
+    expect(innovation.body[0].body).toBe('Contenido Semana');
+    expect(compatibility.body).toHaveLength(1);
+    expect(compatibility.body[0].body).toBe('Contenido TEDx');
+  });
+
   it('POST /content-blocks rechaza sin autenticar con 401', async () => {
     const response = await request(app.getHttpServer())
       .post('/api/v1/content-blocks')
-      .send({ key: 'nuevo_bloque', body: 'Cuerpo.' });
+      .send({ eventSlug: 'tedxucb', key: 'nuevo_bloque', body: 'Cuerpo.' });
     expect(response.status).toBe(401);
   });
 
@@ -66,7 +85,7 @@ describe('Bloques de contenido (contrato, RF-202 RF-203)', () => {
     const response = await request(app.getHttpServer())
       .post('/api/v1/content-blocks')
       .set('Authorization', `Bearer ${token}`)
-      .send({ key: 'nuevo_bloque', body: 'Cuerpo.' });
+      .send({ eventSlug: 'tedxucb', key: 'nuevo_bloque', body: 'Cuerpo.' });
 
     expect(response.status).toBe(403);
   });
@@ -74,11 +93,12 @@ describe('Bloques de contenido (contrato, RF-202 RF-203)', () => {
   it('ADMIN crea un bloque de contenido nuevo', async () => {
     const admin = await seedUser({ email: 'admin-content@ucb.edu.bo', roles: ['ADMIN'] });
     const token = await loginAs(app, admin.email);
+    await seedEvent({ slug: 'tedxucb', status: 'PUBLISHED' });
 
     const response = await request(app.getHttpServer())
       .post('/api/v1/content-blocks')
       .set('Authorization', `Bearer ${token}`)
-      .send({ key: 'nuevo_bloque', title: 'Nuevo', body: 'Cuerpo del bloque.' });
+      .send({ eventSlug: 'tedxucb', key: 'nuevo_bloque', title: 'Nuevo', body: 'Cuerpo del bloque.' });
 
     expect(response.status).toBe(201);
     expect(response.body.key).toBe('nuevo_bloque');
@@ -92,20 +112,21 @@ describe('Bloques de contenido (contrato, RF-202 RF-203)', () => {
     const response = await request(app.getHttpServer())
       .post('/api/v1/content-blocks')
       .set('Authorization', `Bearer ${token}`)
-      .send({ key: 'ya_existe', body: 'Cuerpo.' });
+      .send({ eventSlug: 'tedxucb', key: 'ya_existe', body: 'Cuerpo.' });
 
     expect(response.status).toBe(409);
     expect(response.body.error).toBe('DUPLICATE_KEY');
   });
 
   it('rechaza con 400 VALIDATION_ERROR una clave en formato inválido', async () => {
+    await seedEvent({ slug: 'tedxucb', status: 'PUBLISHED' });
     const admin = await seedUser({ email: 'admin-content3@ucb.edu.bo', roles: ['ADMIN'] });
     const token = await loginAs(app, admin.email);
 
     const response = await request(app.getHttpServer())
       .post('/api/v1/content-blocks')
       .set('Authorization', `Bearer ${token}`)
-      .send({ key: 'Con Mayúscula y espacio', body: 'Cuerpo.' });
+      .send({ eventSlug: 'tedxucb', key: 'Con Mayúscula y espacio', body: 'Cuerpo.' });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('VALIDATION_ERROR');
@@ -134,11 +155,12 @@ describe('Bloques de contenido (contrato, RF-202 RF-203)', () => {
   it('crear y editar un bloque NO genera fila en audit_log (plan.md: solo se audita el Evento)', async () => {
     const admin = await seedUser({ email: 'admin-content5@ucb.edu.bo', roles: ['ADMIN'] });
     const token = await loginAs(app, admin.email);
+    await seedEvent({ slug: 'tedxucb', status: 'PUBLISHED' });
 
     await request(app.getHttpServer())
       .post('/api/v1/content-blocks')
       .set('Authorization', `Bearer ${token}`)
-      .send({ key: 'sin_auditar', body: 'Cuerpo.' });
+      .send({ eventSlug: 'tedxucb', key: 'sin_auditar', body: 'Cuerpo.' });
     await request(app.getHttpServer())
       .patch('/api/v1/content-blocks/sin_auditar')
       .set('Authorization', `Bearer ${token}`)

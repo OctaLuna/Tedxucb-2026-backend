@@ -8,6 +8,18 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  // Local env files commonly keep this key empty until Google OAuth is set up.
+  GOOGLE_CLIENT_ID: z.preprocess((value) => (value === '' ? undefined : value), z.string().min(1).optional()),
+  // Server-only allowlist. These accounts receive ADMIN plus access to both
+  // supported events when they authenticate with Google.
+  ADMIN_EMAILS: z.string().default('').transform((value, context) => {
+    const emails = [...new Set(value.split(',').map((email) => email.trim().toLowerCase()).filter(Boolean))];
+    const invalid = emails.filter((email) => !z.string().email().safeParse(email).success);
+    if (invalid.length) context.addIssue({ code: 'custom', message: 'debe contener solo correos válidos separados por coma' });
+    return emails;
+  }),
+  PUBLIC_FRONTEND_URL_TEDX: z.string().url().optional(),
+  PUBLIC_FRONTEND_URL_INNOVATION_WEEK: z.string().url().optional(),
   // Defaults apuntan a Mailpit local (docker-compose.yml) -- dev/tests
   // funcionan sin tocar .env. En producción se sobreescriben con
   // credenciales SMTP reales.
@@ -20,6 +32,7 @@ const envSchema = z.object({
   // JWT_SECRET -- defensa en profundidad: si uno se filtra, el otro sigue
   // protegido.
   QR_TOKEN_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres'),
+  AVATAR_BRIDGE_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres').optional(),
   // QStash (Upstash) reemplaza al worker persistente de BullMQ para correos
   // y la reconciliación diaria -- no existe en un entorno serverless
   // (Vercel). Sin estas tres, MailService envía directo (dev/pruebas,
@@ -34,6 +47,13 @@ const envSchema = z.object({
   // global por defecto del SDK (https://qstash.upstash.io).
   QSTASH_URL: z.string().url().optional(),
   PUBLIC_URL: z.string().url().optional(),
+}).superRefine((env, context) => {
+  if (env.NODE_ENV === 'production' && !env.GOOGLE_CLIENT_ID) {
+    context.addIssue({ code: 'custom', path: ['GOOGLE_CLIENT_ID'], message: 'es requerido en producción para habilitar el inicio de sesión Google' });
+  }
+  if (env.NODE_ENV === 'production' && !env.AVATAR_BRIDGE_SECRET) {
+    context.addIssue({ code: 'custom', path: ['AVATAR_BRIDGE_SECRET'], message: 'es requerido en producción para vincular y revocar avatares' });
+  }
 });
 
 // BLOB_READ_WRITE_TOKEN (Vercel Blob, ver src/common/upload/upload.service.ts)

@@ -4,6 +4,7 @@ import { createTestApp } from '../support/test-app';
 import { cleanAllTables, closeTestDb } from '../support/prisma-test-client';
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
+import { seedEvent } from '../support/seed-content';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -28,6 +29,7 @@ describe('Historia 4 completa: postulación -> panel -> conversión (T073)', () 
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   it('postulación pública -> aparece en el panel -> se acepta -> se convierte sin recapturar datos', async () => {

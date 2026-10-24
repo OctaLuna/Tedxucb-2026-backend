@@ -5,6 +5,8 @@ import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
+import { seedEvent } from '../support/seed-content';
+import { grantEventAccess } from '../support/seed-events';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -29,12 +31,14 @@ describe('POST /api/v1/points/adjustments (contrato, RF-330, T015)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   async function setupAdminAndStudent() {
     const admin = await seedUser({ email: `admin-ajuste-${Date.now()}@ucb.edu.bo`, roles: ['ADMIN'] });
     const token = await loginAs(app, admin.email);
     const { user: student } = await seedStudent({ email: `alumno-ajuste-${Date.now()}@ucb.edu.bo` });
+    await grantEventAccess(student.email);
     return { token, student };
   }
 

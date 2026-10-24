@@ -1,5 +1,6 @@
 import { prismaTestClient, cleanAllTables, closeTestDb } from '../support/prisma-test-client';
 import { seedSpeaker, seedApplication, completeSpeakerFields } from '../support/seed-speakers';
+import { seedTestEvent } from '../support/seed-events';
 
 describe('Restricciones del motor — tablas de speakers/applications (T024 restante)', () => {
   beforeEach(async () => {
@@ -23,7 +24,8 @@ describe('Restricciones del motor — tablas de speakers/applications (T024 rest
   });
 
   it('rechaza convertedSpeakerId presente con status distinto de CONVERTED', async () => {
-    const speaker = await prismaTestClient.speaker.create({ data: { fullName: 'Speaker' } });
+    const event = await seedTestEvent();
+    const speaker = await prismaTestClient.speaker.create({ data: { eventId: event.id, fullName: 'Speaker' } });
     await expect(
       seedApplication({ status: 'PENDING', convertedSpeakerId: speaker.id }),
     ).rejects.toThrow();

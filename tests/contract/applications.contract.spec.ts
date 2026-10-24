@@ -4,7 +4,7 @@ import { createTestApp } from '../support/test-app';
 import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma-test-client';
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
-import { seedApplication } from '../support/seed-speakers';
+import { seedApplication, seedSpeaker, seedTestEvent } from '../support/seed-speakers';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -45,6 +45,7 @@ describe('Postulaciones de speaker (contrato, RF-210 a RF-215)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedTestEvent();
   });
 
   describe('POST /api/v1/public/applications', () => {
@@ -115,6 +116,23 @@ describe('Postulaciones de speaker (contrato, RF-210 a RF-215)', () => {
         .set('Authorization', `Bearer ${token}`);
       expect(response.status).toBe(200);
       expect(response.body.meta.total).toBe(0);
+    });
+
+    it('filtra postulaciones por eventSlug', async () => {
+      const admin = await seedUser({ email: 'admin-apps-events@ucb.edu.bo', roles: ['ADMIN'] });
+      const token = await loginAs(app, admin.email);
+      const tedx = await seedApplication({ email: 'tedx@example.com' });
+      const week = await seedApplication({ email: 'week@example.com', eventSlug: 'innovation-week' });
+
+      const tedxResponse = await request(app.getHttpServer())
+        .get('/api/v1/applications?eventSlug=tedxucb')
+        .set('Authorization', `Bearer ${token}`);
+      const weekResponse = await request(app.getHttpServer())
+        .get('/api/v1/applications?eventSlug=innovation-week')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(tedxResponse.body.data.map((row: { id: string }) => row.id)).toEqual([tedx.id]);
+      expect(weekResponse.body.data.map((row: { id: string }) => row.id)).toEqual([week.id]);
     });
 
     it('calcula submissionsFromSameEmail agrupando sin distinguir mayúsculas', async () => {
@@ -203,7 +221,7 @@ describe('Postulaciones de speaker (contrato, RF-210 a RF-215)', () => {
     it('rechaza con 409 INVALID_STATUS_TRANSITION reabrir una postulación CONVERTED', async () => {
       const admin = await seedUser({ email: 'admin-apps7@ucb.edu.bo', roles: ['ADMIN'] });
       const token = await loginAs(app, admin.email);
-      const speaker = await prismaTestClient.speaker.create({ data: { fullName: 'Ya Convertido' } });
+      const speaker = await seedSpeaker({ fullName: 'Ya Convertido' });
       const application = await seedApplication({
         status: 'CONVERTED',
         reviewedById: admin.id,

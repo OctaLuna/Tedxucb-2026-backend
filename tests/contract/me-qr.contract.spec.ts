@@ -1,3 +1,4 @@
+import { seedTestEvent } from '../support/seed-events';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from '../support/test-app';
@@ -35,6 +36,7 @@ describe('GET /api/v1/me/qr (contrato, RF-311 RF-312, T013)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedTestEvent();
   });
 
   it('devuelve un token con expiresAt y refreshInSeconds', async () => {

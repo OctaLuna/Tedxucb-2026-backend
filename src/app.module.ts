@@ -12,6 +12,8 @@ import { ActivitiesModule } from './modules/activities/activities.module';
 import { PointsModule } from './modules/points/points.module';
 import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
 import { SelectionModule } from './modules/selection/selection.module';
+import { EventAccessModule } from './modules/event-access/event-access.module';
+import { IdentityEmailModule } from './modules/auth/identity-email.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -20,12 +22,15 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: process.env.NODE_ENV === 'development' ? ['.env.admin.local', '.env'] : '.env',
       validate: validateEnv,
     }),
     PrismaModule,
     RedisModule,
     HealthModule,
     AuthModule,
+    EventAccessModule,
+    IdentityEmailModule,
     UsersModule,
     // ProfilesModule DESPUÉS de UsersModule: ambos declaran @Controller('students')
     // en rutas distintas ('pending'/':id'/'approve' vs ''/'export'/':id'), y

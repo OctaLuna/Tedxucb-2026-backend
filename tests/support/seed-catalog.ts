@@ -39,6 +39,11 @@ export async function seedStudent(overrides: {
     registrationSource: 'SELF_REGISTRATION',
     roles: ['ALUMNO'],
   });
+  if (user.email.endsWith('@ucb.edu.bo')) {
+    await prismaTestClient.userIdentity.create({
+      data: { userId: user.id, provider: 'GOOGLE', subject: `test-google-${user.id}`, verifiedEmail: user.email, hostedDomain: 'ucb.edu.bo' },
+    });
+  }
 
   const careerId = overrides.careerId ?? (await seedCareer()).career.id;
 

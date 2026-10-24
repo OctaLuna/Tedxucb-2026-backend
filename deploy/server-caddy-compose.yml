@@ -1,0 +1,27 @@
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: edge-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      porerekua_default:
+        aliases:
+          - web
+      tedx-facultyweek-edge: {}
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  porerekua_default:
+    external: true
+  tedx-facultyweek-edge:
+    external: true

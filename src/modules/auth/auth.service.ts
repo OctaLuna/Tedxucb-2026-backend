@@ -6,6 +6,7 @@ import { PasswordHashingService } from './password-hashing.service';
 import { TokenPairService, TokenPair } from './token-pair.service';
 import { OneTimeTokenService } from './one-time-token.service';
 import { AuthTokenType, UserStatus } from './auth.constants';
+import { isUniqueConstraintViolation } from '../../common/utils/prisma-error.util';
 
 export interface LoginResult extends TokenPair {
   user: { id: string; fullName: string; roles: string[]; status: string };
@@ -17,6 +18,7 @@ export interface MeResult {
   fullName: string;
   roles: string[];
   status: string;
+  nickname: string | null;
 }
 
 @Injectable()
@@ -150,6 +152,33 @@ export class AuthService {
       fullName: user.fullName,
       roles: user.roles.map((r) => r.role),
       status: user.status,
+      nickname: user.nickname,
     };
+  }
+
+  async updateNickname(userId: string, input: unknown): Promise<{ nickname: string }> {
+    if (typeof input !== 'string') {
+      throw new AppException(400, 'INVALID_NICKNAME', 'El apodo debe contener al menos tres letras o números.');
+    }
+    const nickname = input.normalize('NFKC');
+    if ([...nickname].length < 3 || [...nickname].length > 24 || !/^[\p{L}\p{N}]+$/u.test(nickname)) {
+      throw new AppException(400, 'INVALID_NICKNAME', 'El apodo debe tener entre 3 y 24 letras o números.');
+    }
+
+    try {
+      const result = await this.prisma.user.updateMany({
+        where: { id: userId, status: UserStatus.ACTIVE },
+        data: { nickname, nicknameKey: nickname.toLowerCase().normalize('NFKC') },
+      });
+      if (result.count === 0) {
+        throw new AppException(403, 'ACCOUNT_NOT_ACTIVE', 'Tu cuenta no está activa.');
+      }
+    } catch (error) {
+      if (isUniqueConstraintViolation(error, 'users_nickname_key_key')) {
+        throw new AppException(409, 'NICKNAME_TAKEN', 'Este apodo ya está en uso.');
+      }
+      throw error;
+    }
+    return { nickname };
   }
 }

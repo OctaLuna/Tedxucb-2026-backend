@@ -5,6 +5,7 @@ import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
+import { seedEvent } from '../support/seed-content';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -29,6 +30,7 @@ describe('GET /api/v1/me/progress (contrato, RF-342, T074)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   it('rechaza sin autenticar con 401', async () => {
@@ -83,7 +85,7 @@ describe('GET /api/v1/me/progress (contrato, RF-342, T074)', () => {
       .get('/api/v1/me/progress')
       .set('Authorization', `Bearer ${token}`);
 
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({ totalPoints: 0, rank: null });
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe('ACCOUNT_NOT_ACTIVE');
   });
 });

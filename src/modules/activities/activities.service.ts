@@ -5,6 +5,8 @@ import { LedgerService } from '../../common/ledger/ledger.service';
 import { AppException } from '../../common/exceptions/app.exception';
 import type { PaginatedResult } from '../users/users.service';
 import { ACTIVITY_STATUS, VALID_ACTIVITY_TRANSITIONS, type ActivityStatus } from './activities.constants';
+import { resolveEventBySlug } from '../../common/events/resolve-event';
+import { EventAccessService } from '../event-access/event-access.service';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 
@@ -19,6 +21,7 @@ export class ActivitiesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
+    private readonly eventAccess: EventAccessService,
   ) {}
 
   /**
@@ -26,8 +29,12 @@ export class ActivitiesService {
    * participar. Para no-admin, el filtro de status del cliente se IGNORA
    * server-side: siempre PUBLISHED, sin importar lo que pida.
    */
-  async list(filters: ListActivitiesFilters, isAdmin: boolean): Promise<PaginatedResult<Activity>> {
-    const where = isAdmin && filters.status ? { status: filters.status } : isAdmin ? {} : { status: ACTIVITY_STATUS.PUBLISHED };
+  async list(filters: ListActivitiesFilters, isAdmin: boolean, eventSlug = 'tedxucb'): Promise<PaginatedResult<Activity>> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug, !isAdmin);
+    const where = {
+      eventId: event.id,
+      ...(isAdmin && filters.status ? { status: filters.status } : !isAdmin ? { status: ACTIVITY_STATUS.PUBLISHED } : {}),
+    };
 
     const [data, total] = await Promise.all([
       this.prisma.activity.findMany({
@@ -46,8 +53,9 @@ export class ActivitiesService {
     };
   }
 
-  async getById(id: string, isAdmin: boolean): Promise<Activity> {
-    const activity = await this.prisma.activity.findUnique({ where: { id }, include: { category: true } });
+  async getById(id: string, isAdmin: boolean, eventSlug = 'tedxucb'): Promise<Activity> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug);
+    const activity = await this.prisma.activity.findFirst({ where: { id, eventId: event.id }, include: { category: true } });
     if (!activity || (!isAdmin && activity.status !== ACTIVITY_STATUS.PUBLISHED)) {
       // No revela que existe una actividad DRAFT/CANCELLED a quien no es admin.
       throw new AppException(404, 'NOT_FOUND', 'Actividad no encontrada.');
@@ -56,17 +64,24 @@ export class ActivitiesService {
   }
 
   /** Para uso interno (check-in, guards): sin el filtro de visibilidad de getById. */
-  async getByIdOrThrow(id: string): Promise<Activity> {
-    const activity = await this.prisma.activity.findUnique({ where: { id } });
+  async getByIdOrThrow(id: string, eventSlug?: string): Promise<Activity> {
+    const event = eventSlug ? await resolveEventBySlug(this.prisma, eventSlug) : undefined;
+    const activity = await this.prisma.activity.findFirst({ where: { id, ...(event ? { eventId: event.id } : {}) } });
     if (!activity) {
       throw new AppException(404, 'NOT_FOUND', 'Actividad no encontrada.');
     }
     return activity;
   }
 
-  async create(dto: CreateActivityDto, actorId: string): Promise<Activity> {
+  async create(dto: CreateActivityDto, actorId: string, eventSlug = 'tedxucb'): Promise<Activity> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug);
+    if (dto.categoryId) {
+      const category = await this.prisma.activityCategory.findFirst({ where: { id: dto.categoryId, eventId: event.id } });
+      if (!category) throw new AppException(422, 'INVALID_CATEGORY', 'La categoría no pertenece a este evento.');
+    }
     const activity = await this.prisma.activity.create({
       data: {
+        eventId: event.id,
         title: dto.title,
         description: dto.description,
         categoryId: dto.categoryId,
@@ -86,8 +101,12 @@ export class ActivitiesService {
     return activity;
   }
 
-  async update(id: string, dto: UpdateActivityDto, actorId: string): Promise<Activity> {
-    const current = await this.getByIdOrThrow(id);
+  async update(id: string, dto: UpdateActivityDto, actorId: string, eventSlug = 'tedxucb'): Promise<Activity> {
+    const current = await this.getByIdOrThrow(id, eventSlug);
+    if (dto.categoryId) {
+      const category = await this.prisma.activityCategory.findFirst({ where: { id: dto.categoryId, eventId: current.eventId } });
+      if (!category) throw new AppException(422, 'INVALID_CATEGORY', 'La categoría no pertenece a este evento.');
+    }
 
     if (dto.status && dto.status !== current.status) {
       this.assertTransition(current.status as ActivityStatus, dto.status as ActivityStatus);
@@ -144,9 +163,10 @@ export class ActivitiesService {
    * ACTIVITY de esta actividad que no tengan ya una reversión. El admin
    * decide explícitamente -- no hay default.
    */
-  async cancel(id: string, actorId: string, revertPoints: boolean): Promise<{ activityId: string; status: string; reversedCount: number }> {
+  async cancel(id: string, actorId: string, revertPoints: boolean, eventSlug = 'tedxucb'): Promise<{ activityId: string; status: string; reversedCount: number }> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug);
     return this.prisma.$transaction(async (tx) => {
-      const activity = await tx.activity.findUnique({ where: { id } });
+      const activity = await tx.activity.findFirst({ where: { id, eventId: event.id } });
       if (!activity) {
         throw new AppException(404, 'NOT_FOUND', 'Actividad no encontrada.');
       }
@@ -183,8 +203,8 @@ export class ActivitiesService {
   }
 
   /** RF-307: no se elimina con asistencias registradas -- ofrece cancelar. */
-  async remove(id: string): Promise<void> {
-    await this.getByIdOrThrow(id);
+  async remove(id: string, eventSlug = 'tedxucb'): Promise<void> {
+    await this.getByIdOrThrow(id, eventSlug);
     const attendanceCount = await this.prisma.attendance.count({ where: { activityId: id } });
     if (attendanceCount > 0) {
       throw new AppException(
@@ -197,16 +217,16 @@ export class ActivitiesService {
     await this.prisma.activity.delete({ where: { id } });
   }
 
-  async listStaff(activityId: string) {
-    await this.getByIdOrThrow(activityId);
+  async listStaff(activityId: string, eventSlug = 'tedxucb') {
+    await this.getByIdOrThrow(activityId, eventSlug);
     return this.prisma.activityStaff.findMany({
       where: { activityId },
       include: { user: { select: { id: true, fullName: true, email: true } } },
     });
   }
 
-  async assignStaff(activityId: string, userId: string, actorId: string) {
-    await this.getByIdOrThrow(activityId);
+  async assignStaff(activityId: string, userId: string, actorId: string, eventSlug = 'tedxucb') {
+    const activity = await this.getByIdOrThrow(activityId, eventSlug);
     const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { roles: true } });
     if (!user) {
       throw new AppException(404, 'NOT_FOUND', 'Usuario no encontrado.');
@@ -215,6 +235,7 @@ export class ActivitiesService {
     if (!hasEligibleRole) {
       throw new AppException(422, 'INVALID_STAFF_ROLE', 'El usuario no tiene rol STAFF ni ADMIN.');
     }
+    await this.eventAccess.assertEventIdAccess(user.id, activity.eventId);
 
     await this.prisma.activityStaff.upsert({
       where: { activityId_userId: { activityId, userId } },
@@ -227,8 +248,8 @@ export class ActivitiesService {
     });
   }
 
-  async unassignStaff(activityId: string, userId: string, actorId: string): Promise<void> {
-    await this.getByIdOrThrow(activityId);
+  async unassignStaff(activityId: string, userId: string, actorId: string, eventSlug = 'tedxucb'): Promise<void> {
+    await this.getByIdOrThrow(activityId, eventSlug);
     await this.prisma.activityStaff.deleteMany({ where: { activityId, userId } });
     await this.prisma.auditLog.create({
       data: { actorId, action: 'STAFF_UNASSIGNED', entityType: 'activity', entityId: activityId, detail: { userId } },
@@ -236,10 +257,11 @@ export class ActivitiesService {
   }
 
   /** T093, CE-304: proporción de registros manuales frente a escaneados. */
-  async getCheckinMetrics(): Promise<{ totalCheckins: number; manualCheckins: number; manualRatio: number }> {
+  async getCheckinMetrics(eventSlug = 'tedxucb'): Promise<{ totalCheckins: number; manualCheckins: number; manualRatio: number }> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug);
     const [totalCheckins, manualCheckins] = await Promise.all([
-      this.prisma.attendance.count({ where: { status: { not: 'REJECTED' } } }),
-      this.prisma.attendance.count({ where: { status: { not: 'REJECTED' }, method: 'MANUAL' } }),
+      this.prisma.attendance.count({ where: { status: { not: 'REJECTED' }, activity: { eventId: event.id } } }),
+      this.prisma.attendance.count({ where: { status: { not: 'REJECTED' }, method: 'MANUAL', activity: { eventId: event.id } } }),
     ]);
     return { totalCheckins, manualCheckins, manualRatio: totalCheckins > 0 ? manualCheckins / totalCheckins : 0 };
   }

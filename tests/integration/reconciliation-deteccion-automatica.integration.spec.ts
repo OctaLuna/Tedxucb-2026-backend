@@ -4,6 +4,7 @@ import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
 import { ReconciliationService } from '../../src/modules/points/reconciliation.service';
+import { seedEvent } from '../support/seed-content';
 
 /**
  * T086: automatiza lo que 003-b solo verificó a mano (el propio prompt de
@@ -28,6 +29,7 @@ describe('Reconciliación -- detección y corrección automatizada (T086, RF-332
 
   beforeEach(async () => {
     await cleanAllTables();
+    await seedEvent();
   });
 
   it('checkAll() detecta una caché alterada a mano, y fixStudent() la corrige dejando constancia en auditoría', async () => {

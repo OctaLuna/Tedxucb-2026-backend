@@ -1,4 +1,6 @@
 import { prismaTestClient } from './prisma-test-client';
+import { seedTestEvent } from './seed-events';
+export { seedTestEvent } from './seed-events';
 
 export async function seedSpeaker(
   overrides: Partial<{
@@ -10,10 +12,13 @@ export async function seedSpeaker(
     photoUrl: string;
     photoAltText: string;
     displayOrder: number;
+    eventSlug: string;
   }> = {},
 ) {
+  const event = await seedTestEvent(overrides.eventSlug);
+  const { eventSlug: _eventSlug, ...speakerOverrides } = overrides;
   return prismaTestClient.speaker.create({
-    data: { fullName: 'Ana Pérez', status: 'DRAFT', displayOrder: 0, ...overrides },
+    data: { fullName: 'Ana Pérez', status: 'DRAFT', displayOrder: 0, eventId: event.id, ...speakerOverrides },
   });
 }
 
@@ -42,10 +47,14 @@ export async function seedApplication(
     reviewedById: string;
     reviewedAt: Date;
     convertedSpeakerId: string;
+    eventSlug: string;
   }> = {},
 ) {
+  const event = await seedTestEvent(overrides.eventSlug);
+  const { eventSlug: _eventSlug, ...applicationOverrides } = overrides;
   return prismaTestClient.speakerApplication.create({
     data: {
+      eventId: event.id,
       fullName: 'Carlos Gómez',
       email: 'carlos.gomez@ejemplo.com',
       affiliation: 'Universidad X',
@@ -55,7 +64,7 @@ export async function seedApplication(
       evidenceBasis: 'Estudio propio.',
       applicability: 'Aplicable en universidades.',
       status: 'PENDING',
-      ...overrides,
+      ...applicationOverrides,
     },
   });
 }

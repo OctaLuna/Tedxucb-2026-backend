@@ -7,6 +7,7 @@ import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
 import { seedActivity, seedActivityStaff } from '../support/seed-activities';
 import { QrTokenService } from '../../src/modules/activities/qr-token.service';
+import { seedEvent } from '../support/seed-content';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -33,6 +34,7 @@ describe('GET /api/v1/me/points (contrato, RF-329, T014)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   it('rechaza sin autenticar con 401', async () => {

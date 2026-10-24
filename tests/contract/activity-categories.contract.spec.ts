@@ -1,3 +1,4 @@
+import { grantEventAccess, seedTestEvent } from '../support/seed-events';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from '../support/test-app';
@@ -35,6 +36,7 @@ describe('activity-categories (contrato, RF-310a RF-310b, T101)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedTestEvent();
   });
 
   describe('GET /api/v1/activity-categories', () => {
@@ -45,6 +47,7 @@ describe('activity-categories (contrato, RF-310a RF-310b, T101)', () => {
 
     it('cualquier rol autenticado ve el catálogo completo, ordenado por nombre', async () => {
       const staff = await seedUser({ email: `staff-categorias-${Date.now()}@ucb.edu.bo`, roles: ['STAFF'] });
+      await grantEventAccess(staff.email);
       const token = await loginAs(app, staff.email);
       await seedActivityCategory({ name: 'Zumba', suggestedPoints: 5 });
       await seedActivityCategory({ name: 'Ajedrez', suggestedPoints: 8 });
@@ -55,6 +58,24 @@ describe('activity-categories (contrato, RF-310a RF-310b, T101)', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.map((c: { name: string }) => c.name)).toEqual(['Ajedrez', 'Zumba']);
+    });
+
+    it('repeats category names safely across events', async () => {
+      const admin = await seedUser({ email: `admin-categorias-eventos-${Date.now()}@ucb.edu.bo`, roles: ['ADMIN'] });
+      const token = await loginAs(app, admin.email);
+      await seedTestEvent('innovation-week');
+      await request(app.getHttpServer()).post('/api/v1/activity-categories').query({ eventSlug: 'tedxucb' })
+        .set('Authorization', `Bearer ${token}`).send({ name: 'Talleres' }).expect(201);
+      await request(app.getHttpServer()).post('/api/v1/activity-categories').query({ eventSlug: 'innovation-week' })
+        .set('Authorization', `Bearer ${token}`).send({ name: 'Talleres' }).expect(201);
+
+      const tedx = await request(app.getHttpServer()).get('/api/v1/activity-categories?eventSlug=tedxucb')
+        .set('Authorization', `Bearer ${token}`);
+      const week = await request(app.getHttpServer()).get('/api/v1/activity-categories?eventSlug=innovation-week')
+        .set('Authorization', `Bearer ${token}`);
+      expect(tedx.body).toHaveLength(1);
+      expect(week.body).toHaveLength(1);
+      expect(tedx.body[0].id).not.toBe(week.body[0].id);
     });
   });
 

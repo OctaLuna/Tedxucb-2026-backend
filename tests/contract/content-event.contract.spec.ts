@@ -5,6 +5,7 @@ import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedEvent } from '../support/seed-content';
+import { grantEventAccess } from '../support/seed-events';
 import { MINIMAL_VALID_PNG } from '../support/fixtures';
 
 async function loginAs(app: INestApplication, email: string) {
@@ -127,7 +128,7 @@ describe('Evento y cuenta regresiva (contrato, RF-201 RF-204 RF-205 RF-218 RF-22
         .get(`/api/v1/events/${NONEXISTENT_ID}`)
         .set('Authorization', `Bearer ${token}`);
       expect(missing.status).toBe(404);
-      expect(missing.body.error).toBe('NOT_FOUND');
+      expect(missing.body.error).toBe('EVENT_NOT_FOUND');
     });
 
     it('ADMIN reprograma el evento vía PATCH', async () => {
@@ -147,21 +148,25 @@ describe('Evento y cuenta regresiva (contrato, RF-201 RF-204 RF-205 RF-218 RF-22
       expect(new Date(response.body.startsAt).toISOString()).toBe(newStartsAt);
     });
 
-    it('rechaza con 409 ANOTHER_EVENT_ALREADY_PUBLISHED publicar un segundo evento', async () => {
+    it('permite publicar un segundo evento; los snapshots públicos se resuelven por slug', async () => {
       const admin = await seedUser({ email: 'admin-events4@ucb.edu.bo', roles: ['ADMIN'] });
       const token = await loginAs(app, admin.email);
       await seedEvent({ status: 'PUBLISHED' });
       const draft = await prismaTestClient.event.create({
-        data: { name: 'Segundo evento', startsAt: new Date(Date.now() + 1000), status: 'DRAFT' },
+        data: { slug: 'innovation-week', name: 'Semana de la Facultad', startsAt: new Date(Date.now() + 1000), status: 'DRAFT' },
       });
+      await grantEventAccess(admin.email, 'innovation-week');
 
       const response = await request(app.getHttpServer())
         .patch(`/api/v1/events/${draft.id}`)
         .set('Authorization', `Bearer ${token}`)
         .send({ status: 'PUBLISHED' });
 
-      expect(response.status).toBe(409);
-      expect(response.body.error).toBe('ANOTHER_EVENT_ALREADY_PUBLISHED');
+      expect(response.status).toBe(200);
+      const tedx = await request(app.getHttpServer()).get('/api/v1/public/event?slug=tedxucb');
+      const innovation = await request(app.getHttpServer()).get('/api/v1/public/event?slug=innovation-week');
+      expect(tedx.body.event.slug).toBe('tedxucb');
+      expect(innovation.body.event.slug).toBe('innovation-week');
     });
   });
 

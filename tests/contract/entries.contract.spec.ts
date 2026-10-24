@@ -6,6 +6,7 @@ import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-cli
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
 import { seedEvent } from '../support/seed-content';
+import { grantEventAccess } from '../support/seed-events';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -30,6 +31,7 @@ describe('entries (contrato, RF-416 a RF-419, T016-T018)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
   async function loginAdmin() {
@@ -79,6 +81,7 @@ describe('entries (contrato, RF-416 a RF-419, T016-T018)', () => {
     async function setupSelectedStudent() {
       const { token: adminToken } = await loginAdmin();
       const staff = await seedUser({ email: `staff-scan-${Date.now()}@ucb.edu.bo`, roles: ['STAFF'] });
+      await grantEventAccess(staff.email);
       const staffToken = await loginAs(app, staff.email);
       const { user: student } = await seedStudent({ email: `escaneado-${Date.now()}@ucb.edu.bo` });
       const created = await request(app.getHttpServer())
@@ -90,6 +93,7 @@ describe('entries (contrato, RF-416 a RF-419, T016-T018)', () => {
 
     it('rechaza con 404 INVALID_ENTRY un código inexistente', async () => {
       const staff = await seedUser({ email: `staff-scan-404-${Date.now()}@ucb.edu.bo`, roles: ['STAFF'] });
+      await grantEventAccess(staff.email);
       const token = await loginAs(app, staff.email);
       const response = await request(app.getHttpServer())
         .post('/api/v1/entries/scan')
@@ -141,6 +145,7 @@ describe('entries (contrato, RF-416 a RF-419, T016-T018)', () => {
       const { token: adminToken } = await loginAdmin();
       await seedEvent({ status: 'PUBLISHED', capacity: 100, studentCapacity: 80 });
       const staff = await seedUser({ email: `staff-live2-${Date.now()}@ucb.edu.bo`, roles: ['STAFF'] });
+      await grantEventAccess(staff.email);
       const staffToken = await loginAs(app, staff.email);
       const { user: student } = await seedStudent({ email: `ingresado-${Date.now()}@ucb.edu.bo` });
       const created = await request(app.getHttpServer())

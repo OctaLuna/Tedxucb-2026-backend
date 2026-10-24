@@ -1,0 +1,139 @@
+name: tedx-facultyweek-platform
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ted
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+      POSTGRES_DB: tedx_platform
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [private]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ted -d tedx_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks: [private]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    image: tedx-platform-backend:${IMAGE_TAG:-current}
+    restart: "no"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://ted:${DB_PASSWORD}@postgres:5432/tedx_platform?schema=public
+      DIRECT_URL: postgresql://ted:${DB_PASSWORD}@postgres:5432/tedx_platform?schema=public
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [private]
+
+  backend:
+    image: tedx-platform-backend:${IMAGE_TAG:-current}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://ted:${DB_PASSWORD}@postgres:5432/tedx_platform?schema=public
+      DIRECT_URL: postgresql://ted:${DB_PASSWORD}@postgres:5432/tedx_platform?schema=public
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - backend_uploads:/app/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks: [private, edge]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  tedx-web:
+    image: tedx-platform-tedx:${IMAGE_TAG:-current}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  innovation-web:
+    image: tedx-platform-innovation:${IMAGE_TAG:-current}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  avatar-service:
+    image: tedx-platform-avatar-service:${IMAGE_TAG:-current}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4002
+      DATABASE_PATH: /var/lib/avatar/avatars-2d.sqlite
+      EDITOR_ORIGIN: https://semana-fcef.sis-ucb.site
+      EDITOR_BASE_URL: https://semana-fcef.sis-ucb.site/avatar
+      PARENT_ORIGINS: https://semana-fcef.sis-ucb.site
+    volumes:
+      - avatar_data:/var/lib/avatar
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4002/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  avatar-editor:
+    image: tedx-platform-avatar-editor:${IMAGE_TAG:-current}
+    restart: unless-stopped
+    depends_on:
+      avatar-service:
+        condition: service_healthy
+    networks: [edge]
+
+networks:
+  private:
+    internal: true
+  edge:
+    name: tedx-facultyweek-edge
+    external: true
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_uploads:
+  avatar_data:

@@ -18,6 +18,8 @@ model User {
   email              String   @unique
   passwordHash       String?  @map("password_hash")
   fullName           String   @map("full_name")
+  nickname           String?
+  nicknameKey        String?  @unique @map("nickname_key")
   status             String   @default("PENDING")
   registrationSource String   @map("registration_source")
   createdById        String?  @map("created_by") @db.Uuid
@@ -27,6 +29,7 @@ model User {
   createdBy                  User?                @relation("UserCreatedBy", fields: [createdById], references: [id])
   createdUsers               User[]               @relation("UserCreatedBy")
   roles                      UserRole[]           @relation("UserRoles")
+  identities                 UserIdentity[]
   grantedRoles               UserRole[]           @relation("RoleGrantedBy")
   authTokens                 AuthToken[]          @relation("AuthTokenUser")
   createdTokens              AuthToken[]          @relation("AuthTokenCreatedBy")
@@ -37,6 +40,9 @@ model User {
   updatedEvents              Event[]
   updatedContentBlocks       ContentBlock[]
   createdSpeakers            Speaker[]
+  createdProgramItems        EventProgramItem[]   @relation("EventProgramCreatedBy")
+  createdLiveActivities      EventLiveActivity[]  @relation("EventLiveActivityCreatedBy")
+  updatedLiveActivities      EventLiveActivity[]  @relation("EventLiveActivityUpdatedBy")
   reviewedApplications       SpeakerApplication[]
   createdActivities          Activity[]           @relation("ActivityCreatedBy")
   activityStaffAssignments   ActivityStaff[]      @relation("ActivityStaffUser")
@@ -50,6 +56,50 @@ model User {
   revokedSelections          Selection[]          @relation("SelectionRevokedBy")
 
   @@map("users")
+}
+
+model UserIdentity {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  provider      String
+  subject       String
+  verifiedEmail String   @map("verified_email")
+  hostedDomain  String?  @map("hosted_domain")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@unique([userId, provider])
+  @@map("user_identities")
+}
+
+model ExternalEmailProof {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subject    String
+  email      String
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([subject, email])
+  @@map("external_email_proofs")
+}
+
+model IdentityInvitation {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String
+  eventId    String    @map("event_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  event      Event     @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@index([email])
+  @@index([eventId, email])
+  @@map("identity_invitations")
 }
 
 model UserRole {
@@ -157,12 +207,13 @@ model StudentProfile {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  user               User                @relation(fields: [userId], references: [id])
-  career             Career              @relation(fields: [careerId], references: [id])
+  user               User                 @relation(fields: [userId], references: [id])
+  career             Career               @relation(fields: [careerId], references: [id])
   consentAcceptances ConsentAcceptance[]
   correctionRequests CorrectionRequest[]
   attendances        Attendance[]
   pointTransactions  PointTransaction[]
+  eventPoints        EventStudentPoints[]
   selections         Selection[]
 
   @@index([totalPoints(sort: Desc)])
@@ -226,6 +277,7 @@ model CorrectionRequest {
 // gestionar varias ediciones (Artículo VII, ver plan.md de 002).
 model Event {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug            String?  @unique
   name            String
   tagline         String?
   startsAt        DateTime @map("starts_at") @db.Timestamptz
@@ -241,10 +293,37 @@ model Event {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  updatedBy     User?          @relation(fields: [updatedById], references: [id])
-  selectionRuns SelectionRun[]
+  updatedBy                  User?                            @relation(fields: [updatedById], references: [id])
+  selectionRuns              SelectionRun[]
+  emailAccess                EventEmailAccess[]
+  identityInvitations        IdentityInvitation[]
+  contentBlocks              ContentBlock[]
+  speakers                   Speaker[]
+  speakerApplications        SpeakerApplication[]
+  activityCategories         ActivityCategory[]
+  activities                 Activity[]
+  pointTransactionOwnerships PointTransactionEventOwnership[]
+  eventStudentPoints         EventStudentPoints[]
+  selections                 Selection[]
+  programItems               EventProgramItem[]
+  liveSettings               EventLiveSettings?
+  liveActivities             EventLiveActivity[]
 
   @@map("events")
+}
+
+model EventEmailAccess {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  emailNormalized String    @map("email_normalized")
+  eventId         String    @map("event_id") @db.Uuid
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  event           Event     @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@unique([emailNormalized, eventId])
+  @@index([eventId, emailNormalized])
+  @@map("event_email_access")
 }
 
 // Clave -> texto editable por el admin sin desplegar código (RF-203). Sin
@@ -252,15 +331,19 @@ model Event {
 // justifica el versionado de ConsentVersion (ver plan.md de 002).
 model ContentBlock {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  key         String   @unique
+  eventId     String   @map("event_id") @db.Uuid
+  key         String
   title       String?
   body        String
   updatedById String?  @map("updated_by") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
+  event     Event @relation(fields: [eventId], references: [id], onDelete: Restrict)
   updatedBy User? @relation(fields: [updatedById], references: [id])
 
+  @@unique([eventId, key])
+  @@index([eventId, updatedAt(sort: Desc)])
   @@map("content_blocks")
 }
 
@@ -268,6 +351,7 @@ model ContentBlock {
 // despublica (status: DRAFT), nunca se borra (data-model.md §3 de 002).
 model Speaker {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId      String   @map("event_id") @db.Uuid
   fullName     String   @map("full_name")
   headline     String?
   bio          String?
@@ -280,10 +364,134 @@ model Speaker {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  createdBy   User?               @relation(fields: [createdById], references: [id])
-  application SpeakerApplication?
+  event        Event               @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  createdBy    User?               @relation(fields: [createdById], references: [id])
+  application  SpeakerApplication?
+  programItems EventProgramItem[]
 
+  @@unique([id, eventId])
+  @@index([eventId, status, displayOrder])
   @@map("speakers")
+}
+
+model EventProgramItem {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId      String   @map("event_id") @db.Uuid
+  speakerId    String?  @map("speaker_id") @db.Uuid
+  createdById  String?  @map("created_by") @db.Uuid
+  title        String
+  description  String?
+  type         String   @default("TALK")
+  startsAt     DateTime @map("starts_at") @db.Timestamptz
+  endsAt       DateTime @map("ends_at") @db.Timestamptz
+  displayOrder Int      @default(0) @map("display_order")
+  status       String   @default("DRAFT")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  event          Event               @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  speaker        Speaker?            @relation(fields: [speakerId, eventId], references: [id, eventId], onDelete: Restrict)
+  createdBy      User?               @relation("EventProgramCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  liveActivities EventLiveActivity[]
+
+  @@unique([id, eventId])
+  @@index([eventId, status, startsAt])
+  @@index([eventId, displayOrder, startsAt])
+  @@map("event_program_items")
+}
+
+model EventLiveSettings {
+  eventId          String   @id @map("event_id") @db.Uuid
+  enabled          Boolean  @default(true)
+  manualActivityId String?  @map("manual_activity_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  event          Event              @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  manualActivity EventLiveActivity? @relation("EventLiveManualActivity", fields: [manualActivityId, eventId], references: [id, eventId], onDelete: Restrict)
+
+  @@map("event_live_settings")
+}
+
+model EventLiveActivity {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId        String   @map("event_id") @db.Uuid
+  agendaSlotId   String?  @map("agenda_slot_id") @db.Uuid
+  createdById    String   @map("created_by") @db.Uuid
+  updatedById    String   @map("updated_by") @db.Uuid
+  title          String
+  description    String?
+  startsAt       DateTime @map("starts_at") @db.Timestamptz
+  endsAt         DateTime @map("ends_at") @db.Timestamptz
+  activationMode String   @default("schedule") @map("activation_mode")
+  status         String   @default("DRAFT")
+  quizEnabled    Boolean  @default(false) @map("quiz_enabled")
+  displayOrder   Int      @default(0) @map("display_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  event              Event                   @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  agendaSlot         EventProgramItem?       @relation(fields: [agendaSlotId, eventId], references: [id, eventId], onDelete: Restrict)
+  createdBy          User                    @relation("EventLiveActivityCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy          User                    @relation("EventLiveActivityUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  manualSelectionFor EventLiveSettings[]     @relation("EventLiveManualActivity")
+  questions          EventLiveQuizQuestion[]
+  media              EventLiveMedia[]
+
+  @@unique([id, eventId])
+  @@index([eventId, status, startsAt])
+  @@index([eventId, displayOrder, startsAt])
+  @@map("event_live_activities")
+}
+
+model EventLiveQuizQuestion {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId          String  @map("event_id") @db.Uuid
+  activityId       String  @map("activity_id") @db.Uuid
+  correctOptionId  String? @map("correct_option_id") @db.Uuid
+  prompt           String
+  timeLimitSeconds Int     @map("time_limit_seconds")
+  points           Int     @default(0)
+  displayOrder     Int     @default(0) @map("display_order")
+
+  activity      EventLiveActivity     @relation(fields: [activityId, eventId], references: [id, eventId], onDelete: Cascade)
+  options       EventLiveQuizOption[] @relation("LiveQuizQuestionOptions")
+  correctOption EventLiveQuizOption?  @relation("LiveQuizCorrectOption", fields: [correctOptionId, id], references: [id, questionId], onDelete: Restrict)
+
+  @@unique([id, eventId])
+  @@unique([correctOptionId, id])
+  @@index([activityId, displayOrder])
+  @@map("event_live_quiz_questions")
+}
+
+model EventLiveQuizOption {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId    String @map("event_id") @db.Uuid
+  questionId String @map("question_id") @db.Uuid
+  text       String
+
+  question   EventLiveQuizQuestion  @relation("LiveQuizQuestionOptions", fields: [questionId, eventId], references: [id, eventId], onDelete: Cascade)
+  correctFor EventLiveQuizQuestion? @relation("LiveQuizCorrectOption")
+
+  @@unique([id, questionId])
+  @@index([questionId])
+  @@map("event_live_quiz_options")
+}
+
+model EventLiveMedia {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId      String  @map("event_id") @db.Uuid
+  activityId   String  @map("activity_id") @db.Uuid
+  name         String
+  kind         String
+  url          String
+  coverUrl     String? @map("cover_url")
+  displayOrder Int     @default(0) @map("display_order")
+
+  activity EventLiveActivity @relation(fields: [activityId, eventId], references: [id, eventId], onDelete: Cascade)
+
+  @@index([activityId, displayOrder])
+  @@map("event_live_media")
 }
 
 // Postulación pública (RF-210 a RF-215) -- máquina de estados propia, ver
@@ -291,6 +499,7 @@ model Speaker {
 // usuario autenticado.
 model SpeakerApplication {
   id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId            String    @map("event_id") @db.Uuid
   fullName           String    @map("full_name")
   email              String
   affiliation        String
@@ -307,9 +516,11 @@ model SpeakerApplication {
   ipAddress          String?   @map("ip_address") @db.Inet
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
+  event            Event    @relation(fields: [eventId], references: [id], onDelete: Restrict)
   reviewedBy       User?    @relation(fields: [reviewedById], references: [id])
   convertedSpeaker Speaker? @relation(fields: [convertedSpeakerId], references: [id])
 
+  @@index([eventId, status, createdAt(sort: Desc)])
   @@map("speaker_applications")
 }
 
@@ -322,12 +533,17 @@ model SpeakerApplication {
 
 model ActivityCategory {
   id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name            String  @unique
+  eventId         String  @map("event_id") @db.Uuid
+  name            String
   color           String?
   suggestedPoints Int?    @map("suggested_points")
 
+  event      Event      @relation(fields: [eventId], references: [id], onDelete: Restrict)
   activities Activity[]
 
+  @@unique([id, eventId])
+  @@unique([eventId, name])
+  @@index([eventId])
   @@map("activity_categories")
 }
 
@@ -335,6 +551,7 @@ model ActivityCategory {
 // varía por actividad es cuánto otorga, nunca cuánta gente admite.
 model Activity {
   id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId               String   @map("event_id") @db.Uuid
   categoryId            String?  @map("category_id") @db.Uuid
   title                 String
   description           String?
@@ -350,13 +567,15 @@ model Activity {
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  category          ActivityCategory?  @relation(fields: [categoryId], references: [id])
+  event             Event              @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  category          ActivityCategory?  @relation(fields: [categoryId, eventId], references: [id, eventId])
   createdBy         User               @relation("ActivityCreatedBy", fields: [createdById], references: [id])
   staff             ActivityStaff[]
   attendances       Attendance[]
   pointTransactions PointTransaction[]
 
   @@index([status, startsAt(sort: Desc)])
+  @@index([eventId, status, startsAt(sort: Desc)])
   @@map("activities")
 }
 
@@ -418,16 +637,47 @@ model PointTransaction {
   idempotencyKey String?  @unique @map("idempotency_key")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  student    StudentProfile    @relation(fields: [studentId], references: [userId])
-  activity   Activity?         @relation(fields: [activityId], references: [id])
-  attendance Attendance?       @relation(fields: [attendanceId], references: [id])
-  reverses   PointTransaction? @relation("Reversal", fields: [reversesId], references: [id])
-  reversedBy PointTransaction? @relation("Reversal")
-  createdBy  User?             @relation("PointTransactionCreatedBy", fields: [createdById], references: [id])
+  student        StudentProfile                  @relation(fields: [studentId], references: [userId])
+  activity       Activity?                       @relation(fields: [activityId], references: [id])
+  eventOwnership PointTransactionEventOwnership?
+  attendance     Attendance?                     @relation(fields: [attendanceId], references: [id])
+  reverses       PointTransaction?               @relation("Reversal", fields: [reversesId], references: [id])
+  reversedBy     PointTransaction?               @relation("Reversal")
+  createdBy      User?                           @relation("PointTransactionCreatedBy", fields: [createdById], references: [id])
 
   @@index([studentId, createdAt(sort: Desc)])
   @@index([activityId])
   @@map("point_transactions")
+}
+
+// El ledger de puntos es append-only. Su pertenencia al evento vive en una
+// tabla lateral para poder asignar recursos historicos sin UPDATE al ledger.
+model PointTransactionEventOwnership {
+  pointTransactionId String   @id @map("point_transaction_id") @db.Uuid
+  eventId            String   @map("event_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  pointTransaction PointTransaction @relation(fields: [pointTransactionId], references: [id], onDelete: Restrict)
+  event            Event            @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@index([eventId, pointTransactionId])
+  @@map("point_transaction_event_ownership")
+}
+
+// Reconstruible por evento desde el ledger inmutable; se actualiza en el
+// mismo INSERT que asigna ownership, no desde el cliente.
+model EventStudentPoints {
+  eventId     String   @map("event_id") @db.Uuid
+  studentId   String   @map("student_id") @db.Uuid
+  totalPoints Int      @default(0) @map("total_points")
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  event   Event          @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  student StudentProfile @relation(fields: [studentId], references: [userId], onDelete: Restrict)
+
+  @@id([eventId, studentId])
+  @@index([eventId, totalPoints(sort: Desc)])
+  @@map("event_student_points")
 }
 
 // ---------------------------------------------------------------------
@@ -451,6 +701,7 @@ model SelectionRun {
   revertedBy User?       @relation("SelectionRunRevertedBy", fields: [revertedById], references: [id])
   selections Selection[]
 
+  @@unique([id, eventId])
   @@map("selection_runs")
 }
 
@@ -460,6 +711,7 @@ model SelectionRun {
 // nota de entryCode más abajo, corregido 2026-09-03.
 model Selection {
   id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId            String    @default(dbgenerated("legacy_default_event_id()")) @map("event_id") @db.Uuid
   runId              String?   @map("run_id") @db.Uuid
   source             String
   studentId          String?   @map("student_id") @db.Uuid
@@ -482,12 +734,14 @@ model Selection {
   revokedReason      String?   @map("revoked_reason")
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  run              SelectionRun?   @relation(fields: [runId], references: [id])
+  event            Event           @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  run              SelectionRun?   @relation(fields: [runId, eventId], references: [id, eventId], onDelete: Restrict)
   student          StudentProfile? @relation(fields: [studentId], references: [userId])
   assignedBy       User?           @relation("SelectionAssignedBy", fields: [assignedById], references: [id])
   entryValidatedBy User?           @relation("SelectionEntryValidatedBy", fields: [entryValidatedById], references: [id])
   revokedBy        User?           @relation("SelectionRevokedBy", fields: [revokedById], references: [id])
 
+  @@index([eventId, revokedAt, createdAt(sort: Desc)])
   @@index([runId])
   @@index([studentId])
   @@map("selections")

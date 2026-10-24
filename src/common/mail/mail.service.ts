@@ -23,8 +23,13 @@ export interface SelectionNotificationJob {
   entryCode: string;
 }
 
-export type MailJobName = 'application-confirmation' | 'checkin-notification' | 'selection-notification';
-export type MailJobPayload = ApplicationConfirmationJob | CheckinNotificationJob | SelectionNotificationJob;
+export interface IdentityLinkJob {
+  to: string;
+  url: string;
+}
+
+export type MailJobName = 'application-confirmation' | 'checkin-notification' | 'selection-notification' | 'identity-invitation' | 'identity-email-verification';
+export type MailJobPayload = ApplicationConfirmationJob | CheckinNotificationJob | SelectionNotificationJob | IdentityLinkJob;
 
 /**
  * Único lugar del proyecto que toca nodemailer. Antes el envío vivía en un
@@ -131,7 +136,19 @@ export class MailService {
         return this.sendCheckinNotification(payload as CheckinNotificationJob);
       case 'selection-notification':
         return this.sendSelectionNotification(payload as SelectionNotificationJob);
+      case 'identity-invitation':
+      case 'identity-email-verification':
+        return this.sendIdentityLink(payload as IdentityLinkJob, jobName);
     }
+  }
+
+  private async sendIdentityLink(data: IdentityLinkJob, kind: 'identity-invitation' | 'identity-email-verification'): Promise<void> {
+    await this.transporter.sendMail({
+      from: this.config.get('MAIL_FROM', { infer: true }),
+      to: data.to,
+      subject: kind === 'identity-invitation' ? 'Invitación a los eventos UCB' : 'Confirma tu correo para los eventos UCB',
+      text: `Abre este enlace para continuar: ${data.url}\n\nEl enlace vence en tres días. Si no solicitaste este correo, puedes ignorarlo.`,
+    });
   }
 
   private async sendApplicationConfirmation(data: ApplicationConfirmationJob): Promise<void> {

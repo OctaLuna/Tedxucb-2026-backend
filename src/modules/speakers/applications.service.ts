@@ -4,6 +4,7 @@ import type { Prisma, Speaker, SpeakerApplication } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AppException } from '../../common/exceptions/app.exception';
 import { MailService } from '../../common/mail/mail.service';
+import { resolveEventBySlug } from '../../common/events/resolve-event';
 import type { PaginatedResult } from '../users/users.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
@@ -38,13 +39,15 @@ export class ApplicationsService {
    * un UUID real (no reconocible) para que la forma sea indistinguible de
    * una postulación genuina.
    */
-  async create(dto: CreateApplicationDto, ip: string | undefined): Promise<CreateApplicationResult> {
+  async create(dto: CreateApplicationDto, ip: string | undefined, eventSlug = 'tedxucb'): Promise<CreateApplicationResult> {
     if (dto.website && dto.website.trim().length > 0) {
       return { id: randomUUID(), status: 'PENDING', createdAt: new Date().toISOString() };
     }
 
+    const event = await resolveEventBySlug(this.prisma, eventSlug, true);
     const application = await this.prisma.speakerApplication.create({
       data: {
+        eventId: event.id,
         fullName: dto.fullName,
         email: dto.email,
         affiliation: dto.affiliation,
@@ -72,8 +75,9 @@ export class ApplicationsService {
     };
   }
 
-  async list(filters: ListApplicationsFilters): Promise<PaginatedResult<ApplicationSummary>> {
-    const where = this.buildWhere(filters);
+  async list(filters: ListApplicationsFilters, eventSlug = 'tedxucb'): Promise<PaginatedResult<ApplicationSummary>> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug);
+    const where = { ...this.buildWhere(filters), eventId: event.id };
     const [rows, total] = await Promise.all([
       this.prisma.speakerApplication.findMany({
         where,
@@ -87,7 +91,9 @@ export class ApplicationsService {
     const uniqueEmails = [...new Set(rows.map((r) => r.email))];
     const counts = await Promise.all(
       uniqueEmails.map((email) =>
-        this.prisma.speakerApplication.count({ where: { email: { equals: email, mode: 'insensitive' } } }),
+        this.prisma.speakerApplication.count({
+          where: { eventId: event.id, email: { equals: email, mode: 'insensitive' } },
+        }),
       ),
     );
     const countByEmail = new Map(uniqueEmails.map((email, i) => [email.toLowerCase(), counts[i]]));
@@ -98,8 +104,9 @@ export class ApplicationsService {
     };
   }
 
-  async getById(id: string): Promise<SpeakerApplication> {
-    const application = await this.prisma.speakerApplication.findUnique({ where: { id } });
+  async getById(id: string, eventSlug = 'tedxucb'): Promise<SpeakerApplication> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug);
+    const application = await this.prisma.speakerApplication.findFirst({ where: { id, eventId: event.id } });
     if (!application) {
       throw new AppException(404, 'NOT_FOUND', 'Postulación no encontrada.');
     }
@@ -112,12 +119,12 @@ export class ApplicationsService {
    * es terminal para cambios de status -- 409 INVALID_STATUS_TRANSITION.
    * internalNotes solo, sin status, siempre permitido.
    */
-  async update(id: string, dto: UpdateApplicationDto, actorId: string): Promise<SpeakerApplication> {
+  async update(id: string, dto: UpdateApplicationDto, actorId: string, eventSlug = 'tedxucb'): Promise<SpeakerApplication> {
     if (dto.status === 'CONVERTED') {
       throw new AppException(422, 'INVALID_STATUS', 'El estado CONVERTED solo lo produce el endpoint de conversión.');
     }
 
-    const application = await this.getById(id);
+    const application = await this.getById(id, eventSlug);
 
     if (dto.status && application.status === 'CONVERTED') {
       throw new AppException(409, 'INVALID_STATUS_TRANSITION', 'Esta postulación ya fue convertida y no se puede reabrir.');
@@ -150,9 +157,10 @@ export class ApplicationsService {
    * la CONDICIÓN del UPDATE (updateMany where status='ACCEPTED'), no en un
    * SELECT previo -- mismo principio que el motor de puntos.
    */
-  async convertToSpeaker(applicationId: string, actorId: string): Promise<Speaker> {
+  async convertToSpeaker(applicationId: string, actorId: string, eventSlug = 'tedxucb'): Promise<Speaker> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug);
     return this.prisma.$transaction(async (tx) => {
-      const application = await tx.speakerApplication.findUnique({ where: { id: applicationId } });
+      const application = await tx.speakerApplication.findFirst({ where: { id: applicationId, eventId: event.id } });
       if (!application) {
         throw new AppException(404, 'NOT_FOUND', 'Postulación no encontrada.');
       }
@@ -162,6 +170,7 @@ export class ApplicationsService {
 
       const speaker = await tx.speaker.create({
         data: {
+          eventId: application.eventId,
           fullName: application.fullName,
           talkTitle: application.ideaTitle,
           headline: application.affiliation,
@@ -218,4 +227,5 @@ export class ApplicationsService {
     }
     return where;
   }
+
 }

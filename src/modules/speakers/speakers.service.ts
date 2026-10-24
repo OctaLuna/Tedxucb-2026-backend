@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AppException } from '../../common/exceptions/app.exception';
 import { isUniqueConstraintViolation } from '../../common/utils/prisma-error.util';
 import { UploadService } from '../../common/upload/upload.service';
+import { resolveEventBySlug } from '../../common/events/resolve-event';
 import type { PaginatedResult } from '../users/users.service';
 import { CreateSpeakerDto } from './dto/create-speaker.dto';
 import { UpdateSpeakerDto } from './dto/update-speaker.dto';
@@ -27,21 +28,25 @@ export class SpeakersService {
   ) {}
 
   /** RF-207/RF-208: solo PUBLISHED, ordenados. Sin paginar (colección acotada). */
-  listPublic() {
+  async listPublic(eventSlug = 'tedxucb') {
+    const event = await resolveEventBySlug(this.prisma, eventSlug, true);
     return this.prisma.speaker.findMany({
-      where: { status: 'PUBLISHED' },
+      where: { eventId: event.id, status: 'PUBLISHED' },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
     });
   }
 
-  async list(filters: ListSpeakersFilters): Promise<PaginatedResult<Speaker>> {
+  async list(filters: ListSpeakersFilters, eventSlug = 'tedxucb'): Promise<PaginatedResult<Speaker>> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug);
+    const where = { eventId: event.id };
     const [data, total] = await Promise.all([
       this.prisma.speaker.findMany({
         skip: (filters.page - 1) * filters.limit,
         take: filters.limit,
+        where,
         orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
       }),
-      this.prisma.speaker.count(),
+      this.prisma.speaker.count({ where }),
     ]);
     return {
       data,
@@ -49,17 +54,20 @@ export class SpeakersService {
     };
   }
 
-  async getById(id: string): Promise<Speaker> {
-    const speaker = await this.prisma.speaker.findUnique({ where: { id } });
+  async getById(id: string, eventSlug = 'tedxucb'): Promise<Speaker> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug);
+    const speaker = await this.prisma.speaker.findFirst({ where: { id, eventId: event.id } });
     if (!speaker) {
       throw new AppException(404, 'NOT_FOUND', 'Speaker no encontrado.');
     }
     return speaker;
   }
 
-  async create(dto: CreateSpeakerDto, actorId: string): Promise<Speaker> {
+  async create(dto: CreateSpeakerDto, actorId: string, eventSlug = 'tedxucb'): Promise<Speaker> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug);
     const speaker = await this.prisma.speaker.create({
       data: {
+        eventId: event.id,
         fullName: dto.fullName,
         headline: dto.headline,
         bio: dto.bio,
@@ -79,8 +87,8 @@ export class SpeakersService {
    * que el error crudo de Postgres no puede dar) + catch de segunda capa
    * sobre el CHECK real (defensa de condición de carrera).
    */
-  async update(id: string, dto: UpdateSpeakerDto, actorId: string): Promise<Speaker> {
-    const current = await this.getById(id);
+  async update(id: string, dto: UpdateSpeakerDto, actorId: string, eventSlug = 'tedxucb'): Promise<Speaker> {
+    const current = await this.getById(id, eventSlug);
     // class-transformer materializa TODAS las propiedades declaradas del DTO
     // como claves presentes (con valor undefined si no vinieron en el JSON)
     // -- spread directo pisaría los valores actuales con undefined. Solo se
@@ -135,8 +143,9 @@ export class SpeakersService {
     id: string,
     file: UploadedSpeakerPhotoFile | undefined,
     actorId: string,
+    eventSlug = 'tedxucb',
   ): Promise<{ photoUrl: string }> {
-    await this.getById(id); // 404 si no existe
+    await this.getById(id, eventSlug); // 404 si no existe en este evento
 
     const photoUrl = await this.uploadService.upload('speakers', file?.buffer);
     await this.prisma.speaker.update({ where: { id }, data: { photoUrl } });
@@ -148,13 +157,14 @@ export class SpeakersService {
   }
 
   /** POST /speakers/reorder: la lista debe ser el universo completo de ids existentes. */
-  async reorder(ids: string[], actorId: string): Promise<void> {
+  async reorder(ids: string[], actorId: string, eventSlug = 'tedxucb'): Promise<void> {
+    const event = await resolveEventBySlug(this.prisma, eventSlug);
     const providedSet = new Set(ids);
     if (providedSet.size !== ids.length) {
       throw new AppException(400, 'VALIDATION_ERROR', 'La lista contiene ids repetidos.');
     }
 
-    const existing = await this.prisma.speaker.findMany({ select: { id: true } });
+    const existing = await this.prisma.speaker.findMany({ where: { eventId: event.id }, select: { id: true } });
     const existingIds = new Set(existing.map((s) => s.id));
 
     const unknownIds = ids.filter((id) => !existingIds.has(id));
@@ -183,4 +193,5 @@ export class SpeakersService {
       return value == null || (typeof value === 'string' && value.trim().length === 0);
     });
   }
+
 }

@@ -5,6 +5,8 @@ import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma
 import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent, seedCareer } from '../support/seed-catalog';
+import { seedEvent } from '../support/seed-content';
+import { grantEventAccess, seedTestEvent } from '../support/seed-events';
 
 async function loginAs(app: INestApplication, email: string) {
   const response = await request(app.getHttpServer())
@@ -29,9 +31,10 @@ describe('GET /api/v1/students (contrato, RF-113/114/115/120)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedEvent();
   });
 
-  it('lista alumnos con totalPoints null explícito (003 todavía no agrega la columna)', async () => {
+  it('lista alumnos con saldo cero para el evento sin movimientos', async () => {
     const admin = await seedUser({ email: 'admin@ucb.edu.bo', roles: ['ADMIN'] });
     const token = await loginAs(app, admin.email);
     await seedStudent({ email: 'alumno@ucb.edu.bo', fullName: 'Alumno Uno' });
@@ -42,7 +45,7 @@ describe('GET /api/v1/students (contrato, RF-113/114/115/120)', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data).toHaveLength(1);
-    expect(response.body.data[0]).toMatchObject({ fullName: 'Alumno Uno', totalPoints: null });
+    expect(response.body.data[0]).toMatchObject({ fullName: 'Alumno Uno', totalPoints: 0 });
   });
 
   it('filtra por carrera y por texto libre (nombre o código)', async () => {
@@ -109,6 +112,24 @@ describe('GET /api/v1/students (contrato, RF-113/114/115/120)', () => {
 
     const audit = await prismaTestClient.auditLog.findFirst({ where: { action: 'STUDENTS_EXPORTED' } });
     expect(audit).not.toBeNull();
+  });
+
+  it('limita la vista administrativa de perfiles externos al evento en su whitelist', async () => {
+    await seedTestEvent('innovation-week');
+    const admin = await seedUser({ email: 'admin-event-students@ucb.edu.bo', roles: ['ADMIN'] });
+    const token = await loginAs(app, admin.email);
+    const { user: external } = await seedStudent({ email: 'externo-students@example.com' });
+    await grantEventAccess(external.email, 'tedxucb');
+
+    const tedx = await request(app.getHttpServer()).get('/api/v1/students?eventSlug=tedxucb')
+      .set('Authorization', `Bearer ${token}`).expect(200);
+    const innovation = await request(app.getHttpServer()).get('/api/v1/students?eventSlug=innovation-week')
+      .set('Authorization', `Bearer ${token}`).expect(200);
+    expect(tedx.body.data.map((row: { id: string }) => row.id)).toContain(external.id);
+    expect(innovation.body.data).toHaveLength(0);
+
+    await request(app.getHttpServer()).get(`/api/v1/students/${external.id}?eventSlug=innovation-week`)
+      .set('Authorization', `Bearer ${token}`).expect(404);
   });
 
   // Capa 4 de la defensa de rutas: `users` declara @Controller('students')

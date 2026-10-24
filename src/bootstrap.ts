@@ -28,6 +28,7 @@ export async function configureApp(app: NestExpressApplication): Promise<void> {
         'precisa de cada respuesta viven en specs/*/contracts/*.md del repositorio backend.',
     )
     .setVersion('1.0')
+    .addServer('/api/v1', 'API v1')
     .addBearerAuth()
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
@@ -37,13 +38,13 @@ export async function configureApp(app: NestExpressApplication): Promise<void> {
   // ejecución y esos archivos nunca llegan al despliegue -- 404 real
   // encontrado probando el link en producción. Se cargan desde jsdelivr
   // en vez de pelear con el tracing; versión fijada a la exacta que trae
-  // instalada @nestjs/swagger@8.1.1 (swagger-ui-dist@5.18.2) para que la
+  // instalada @nestjs/swagger@11.4.7 (swagger-ui-dist@5.32.13) para que la
   // API que espera el HTML generado coincida con la que carga el CDN.
   SwaggerModule.setup('api/docs', app, swaggerDocument, {
-    customCssUrl: 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.18.2/swagger-ui.min.css',
+    customCssUrl: 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.32.13/swagger-ui.min.css',
     customJs: [
-      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.18.2/swagger-ui-bundle.js',
-      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.18.2/swagger-ui-standalone-preset.js',
+      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.32.13/swagger-ui-bundle.js',
+      'https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.32.13/swagger-ui-standalone-preset.js',
     ],
   });
 
@@ -62,7 +63,11 @@ export async function configureApp(app: NestExpressApplication): Promise<void> {
       },
     }),
   );
-  app.enableCors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173' });
+  const corsOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  app.enableCors({ origin: corsOrigins });
 
   // Fallback de disco local para subidas (ver UploadService) -- solo
   // cuando no hay Vercel Blob configurado (desarrollo/pruebas). El

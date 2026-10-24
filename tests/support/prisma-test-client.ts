@@ -2,7 +2,20 @@ import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const testDatabaseUrl = process.env.DATABASE_URL;
+if (!testDatabaseUrl) {
+  throw new Error('DATABASE_URL is required for integration tests.');
+}
+
+const testDatabaseHost = new URL(testDatabaseUrl).hostname.toLowerCase();
+const testDatabaseName = new URL(testDatabaseUrl).pathname.replace(/^\//, '').toLowerCase();
+if (!['localhost', '127.0.0.1', '::1'].includes(testDatabaseHost) || testDatabaseName !== 'ted_integration_test') {
+  throw new Error(
+    `Integration tests require the isolated local database ted_integration_test; received "${testDatabaseHost}/${testDatabaseName}".`,
+  );
+}
+
+const adapter = new PrismaPg({ connectionString: testDatabaseUrl });
 
 export const prismaTestClient = new PrismaClient({ adapter });
 
@@ -25,7 +38,8 @@ export async function cleanAuthTables(): Promise<void> {
  */
 export async function cleanAllTables(): Promise<void> {
   await prismaTestClient.$executeRawUnsafe(
-    'TRUNCATE TABLE audit_log, refresh_tokens, auth_tokens, correction_requests, ' +
+    'TRUNCATE TABLE audit_log, refresh_tokens, auth_tokens, identity_invitations, external_email_proofs, ' +
+      'event_email_access, correction_requests, ' +
       'consent_acceptances, consent_versions, student_profiles, careers, faculties, ' +
       'selections, selection_runs, events, content_blocks, speaker_applications, speakers, ' +
       'point_transactions, attendances, activity_staff, activities, activity_categories, ' +

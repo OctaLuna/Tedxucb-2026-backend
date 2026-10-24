@@ -1,3 +1,4 @@
+import { seedTestEvent } from '../support/seed-events';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from '../support/test-app';
@@ -33,6 +34,7 @@ describe('GET /api/v1/activities/metrics (contrato, T093, CE-304)', () => {
   beforeEach(async () => {
     await cleanAllTables();
     await cleanRateLimits();
+    await seedTestEvent();
   });
 
   it('rechaza con 403 a un STAFF (solo ADMIN)', async () => {

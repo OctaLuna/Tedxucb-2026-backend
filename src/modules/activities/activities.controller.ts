@@ -12,7 +12,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ActivitiesService } from './activities.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -23,6 +23,7 @@ import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { CancelActivityDto } from './dto/cancel-activity.dto';
 import { AssignStaffDto } from './dto/assign-staff.dto';
+import { EventAccessGuard } from '../event-access/event-access.guard';
 
 /**
  * RF-310c: el catálogo (GET) es visible a cualquier rol autenticado, no
@@ -37,14 +38,17 @@ export class ActivitiesController {
   constructor(private readonly activitiesService: ActivitiesService) {}
 
   @Get()
+  @UseGuards(EventAccessGuard)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
   list(
     @CurrentUser() user: AccessTokenPayload,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('status') status?: string,
+    @Query('eventSlug') eventSlug = 'tedxucb',
   ) {
     const isAdmin = user.roles.includes('ADMIN');
-    return this.activitiesService.list({ page: Number(page) || 1, limit: Number(limit) || 20, status }, isAdmin);
+    return this.activitiesService.list({ page: Number(page) || 1, limit: Number(limit) || 20, status }, isAdmin, eventSlug);
   }
 
   // 'metrics' ANTES que ':id' -- Nest/Express matchean por orden de
@@ -52,84 +56,98 @@ export class ActivitiesController {
   // después (mismo criterio que 'export' antes de ':id' en
   // students.controller.ts, 001-d).
   @Get('metrics')
-  @UseGuards(RolesGuard)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  @UseGuards(RolesGuard, EventAccessGuard)
   @Roles('ADMIN')
-  metrics() {
-    return this.activitiesService.getCheckinMetrics();
+  metrics(@Query('eventSlug') eventSlug = 'tedxucb') {
+    return this.activitiesService.getCheckinMetrics(eventSlug);
   }
 
   @Get(':id')
-  detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AccessTokenPayload) {
-    return this.activitiesService.getById(id, user.roles.includes('ADMIN'));
+  @UseGuards(EventAccessGuard)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AccessTokenPayload, @Query('eventSlug') eventSlug = 'tedxucb') {
+    return this.activitiesService.getById(id, user.roles.includes('ADMIN'), eventSlug);
   }
 
   @Post()
-  @UseGuards(RolesGuard)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  @UseGuards(RolesGuard, EventAccessGuard)
   @Roles('ADMIN')
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: CreateActivityDto, @CurrentUser() actor: AccessTokenPayload) {
-    return this.activitiesService.create(dto, actor.sub);
+  create(@Body() dto: CreateActivityDto, @CurrentUser() actor: AccessTokenPayload, @Query('eventSlug') eventSlug = 'tedxucb') {
+    return this.activitiesService.create(dto, actor.sub, eventSlug);
   }
 
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  @UseGuards(RolesGuard, EventAccessGuard)
   @Roles('ADMIN')
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateActivityDto,
     @CurrentUser() actor: AccessTokenPayload,
+    @Query('eventSlug') eventSlug = 'tedxucb',
   ) {
-    return this.activitiesService.update(id, dto, actor.sub);
+    return this.activitiesService.update(id, dto, actor.sub, eventSlug);
   }
 
   @Post(':id/cancel')
-  @UseGuards(RolesGuard)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  @UseGuards(RolesGuard, EventAccessGuard)
   @Roles('ADMIN')
   @HttpCode(HttpStatus.OK)
   cancel(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CancelActivityDto,
     @CurrentUser() actor: AccessTokenPayload,
+    @Query('eventSlug') eventSlug = 'tedxucb',
   ) {
-    return this.activitiesService.cancel(id, actor.sub, dto.revertPoints);
+    return this.activitiesService.cancel(id, actor.sub, dto.revertPoints, eventSlug);
   }
 
   @Delete(':id')
-  @UseGuards(RolesGuard)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  @UseGuards(RolesGuard, EventAccessGuard)
   @Roles('ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    await this.activitiesService.remove(id);
+  async remove(@Param('id', ParseUUIDPipe) id: string, @Query('eventSlug') eventSlug = 'tedxucb'): Promise<void> {
+    await this.activitiesService.remove(id, eventSlug);
   }
 
   @Get(':id/staff')
-  @UseGuards(RolesGuard)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  @UseGuards(RolesGuard, EventAccessGuard)
   @Roles('ADMIN')
-  listStaff(@Param('id', ParseUUIDPipe) id: string) {
-    return this.activitiesService.listStaff(id);
+  listStaff(@Param('id', ParseUUIDPipe) id: string, @Query('eventSlug') eventSlug = 'tedxucb') {
+    return this.activitiesService.listStaff(id, eventSlug);
   }
 
   @Post(':id/staff')
-  @UseGuards(RolesGuard)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  @UseGuards(RolesGuard, EventAccessGuard)
   @Roles('ADMIN')
   @HttpCode(HttpStatus.OK)
   async assignStaff(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignStaffDto,
     @CurrentUser() actor: AccessTokenPayload,
+    @Query('eventSlug') eventSlug = 'tedxucb',
   ): Promise<void> {
-    await this.activitiesService.assignStaff(id, dto.userId, actor.sub);
+    await this.activitiesService.assignStaff(id, dto.userId, actor.sub, eventSlug);
   }
 
   @Delete(':id/staff/:userId')
-  @UseGuards(RolesGuard)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  @UseGuards(RolesGuard, EventAccessGuard)
   @Roles('ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
   async unassignStaff(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('userId', ParseUUIDPipe) userId: string,
     @CurrentUser() actor: AccessTokenPayload,
+    @Query('eventSlug') eventSlug = 'tedxucb',
   ): Promise<void> {
-    await this.activitiesService.unassignStaff(id, userId, actor.sub);
+    await this.activitiesService.unassignStaff(id, userId, actor.sub, eventSlug);
   }
 }

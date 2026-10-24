@@ -3,6 +3,7 @@ import { createTestApp } from '../support/test-app';
 import { cleanAllTables, closeTestDb, prismaTestClient } from '../support/prisma-test-client';
 import { seedStudent } from '../support/seed-catalog';
 import { LeaderboardService } from '../../src/modules/leaderboard/leaderboard.service';
+import { seedEvent } from '../support/seed-content';
 
 /**
  * RF-339: con puntajes empatados, precede quien alcanzó ese puntaje
@@ -26,6 +27,7 @@ describe('Desempate determinista del ranking (T018, RF-339)', () => {
 
   beforeEach(async () => {
     await cleanAllTables();
+    await seedEvent();
   });
 
   it('con puntajes empatados, precede quien llegó primero -- y el orden es idéntico en dos ejecuciones seguidas', async () => {

@@ -8,9 +8,10 @@ import { PublicApplicationsController } from './public-applications.controller';
 import { ApplicationsController } from './applications.controller';
 import { SpeakersService } from './speakers.service';
 import { ApplicationsService } from './applications.service';
+import { EventAccessModule } from '../event-access/event-access.module';
 
 @Module({
-  imports: [AuthModule, MailModule, UploadModule],
+  imports: [AuthModule, MailModule, UploadModule, EventAccessModule],
   controllers: [PublicSpeakersController, SpeakersController, PublicApplicationsController, ApplicationsController],
   providers: [SpeakersService, ApplicationsService],
 })
