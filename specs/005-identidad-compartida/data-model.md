@@ -30,7 +30,7 @@
 2. Una allowlist no equivale a identidad, rol ni sesión. El grant es por correo/evento y se valida en cada operación privada.
 3. Toda relación entre dos recursos scoped incluye evento en FK/constraint o deriva el scope de una relación ya restringida. La autorización en servicios complementa, no sustituye, las constraints.
 4. El ledger original es inmutable. La proyección por evento puede reconciliarse desde ownership; cualquier reconciliación debe quedar validada antes del corte.
-5. Las migraciones locales vigentes pasan el fixture de dump/restauración: 28 migraciones al 26 de octubre, filas TEDx legacy, ledger/hash, constraints compuestas y cero huérfanos.
+5. Las migraciones locales vigentes pasan el fixture de dump/restauración: 29 migraciones al 26 de octubre, filas TEDx legacy, ledger/hash, constraints compuestas y cero huérfanos.
 6. La prueba anterior no certifica una operación online sin bloqueo ni compatibilidad entre versiones durante un deploy. T031 permanece abierto: antes de usar una base compartida hay que definir ventana de mantenimiento o dividir expand, backfill, validación y contract en migraciones ensayadas sobre dump representativo.
 7. Supabase productivo no es un destino de prueba. Datos reales requieren dump revisado, respaldo, conteos/relaciones comparados y plan de corte aprobado.
 
