@@ -47,15 +47,33 @@ function Get-BuildDockerfile($item) {
 
     $content = Get-Content -Raw -LiteralPath $item.Dockerfile
     $secretMount = ' --mount=type=secret,id=build_ca,target=/tmp/build-ca.pem,required=true '
+    $bundleInstall = 'RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*'
+    $backendBundleInstall = 'RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*'
+    $bundleTrust = "RUN$secretMount cat /tmp/build-ca.pem >> /etc/ssl/certs/ca-certificates.crt"
+    $backendBundleIndex = $content.IndexOf($backendBundleInstall, [StringComparison]::Ordinal)
+    if ($backendBundleIndex -ge 0) {
+        $insertionPoint = $backendBundleIndex + $backendBundleInstall.Length
+        $content = $content.Insert($insertionPoint, "`n$bundleTrust")
+    } else {
+        $workdir = 'WORKDIR /app'
+        $workdirIndex = $content.IndexOf($workdir, [StringComparison]::Ordinal)
+        if ($workdirIndex -lt 0) { throw "No se encontró WORKDIR /app en el Dockerfile de $($item.Component)." }
+        $insertionPoint = $workdirIndex + $workdir.Length
+        $bootstrap = "`n$bundleInstall`n$bundleTrust"
+        $content = $content.Insert($insertionPoint, $bootstrap)
+    }
+
     if ($item.Component -eq 'tedx') {
         $originalPrepare = 'RUN corepack enable && corepack prepare pnpm@11.1.2 --activate'
         $replacementPrepare = "RUN$secretMount corepack enable && NODE_EXTRA_CA_CERTS=/tmp/build-ca.pem corepack prepare pnpm@11.1.2 --activate"
         $originalInstall = 'RUN pnpm install --frozen-lockfile'
         $replacementInstall = "RUN$secretMount NODE_EXTRA_CA_CERTS=/tmp/build-ca.pem pnpm install --frozen-lockfile"
-        if (-not $content.Contains($originalPrepare) -or -not $content.Contains($originalInstall)) {
+        $originalBuild = 'RUN pnpm build'
+        $replacementBuild = "RUN$secretMount NODE_EXTRA_CA_CERTS=/tmp/build-ca.pem pnpm build"
+        if (-not $content.Contains($originalPrepare) -or -not $content.Contains($originalInstall) -or -not $content.Contains($originalBuild)) {
             throw 'No se encontraron los pasos de Corepack/pnpm esperados para inyectar la CA de build.'
         }
-        $content = $content.Replace($originalPrepare, $replacementPrepare).Replace($originalInstall, $replacementInstall)
+        $content = $content.Replace($originalPrepare, $replacementPrepare).Replace($originalInstall, $replacementInstall).Replace($originalBuild, $replacementBuild)
     } else {
         $originalInstall = 'RUN npm ci'
         $replacementInstall = "RUN$secretMount NODE_EXTRA_CA_CERTS=/tmp/build-ca.pem npm ci"

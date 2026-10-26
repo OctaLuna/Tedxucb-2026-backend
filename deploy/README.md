@@ -25,9 +25,10 @@ ningún secreto de servidor se incorpora a las imágenes.
 
 Si la red de build inspecciona TLS con una CA privada confiable, se puede
 pasar el certificado PEM con `-BuildCaFile 'C:\ruta\ca.pem'`. El script lo
-monta como secreto BuildKit solo durante la instalación de dependencias; no
-desactiva la validación TLS ni copia la CA a las imágenes finales. No guardar
-certificados privados o credenciales en el repositorio o en los TAR.
+monta como secreto BuildKit solo durante la instalación de dependencias y el
+build TEDx que descarga Google Fonts; no desactiva la validación TLS ni copia
+la CA a las imágenes finales. No guardar certificados privados o
+credenciales en el repositorio o en los TAR.
 
 ## Carga en el servidor
 
