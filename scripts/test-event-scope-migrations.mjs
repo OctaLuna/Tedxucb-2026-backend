@@ -229,6 +229,11 @@ async function main() {
     await mkdir(migrationRoot, { recursive: true });
     await cp(path.join(root, 'prisma', 'migrations', 'migration_lock.toml'), path.join(migrationRoot, 'migration_lock.toml'));
     const migrations = path.join(root, 'prisma', 'migrations');
+    const migrationNames = (await readdir(migrations, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+    const baselineMigrationCount = migrationNames.filter((name) => name < baselineEnd).length;
     await copyMigrationRange(migrations, migrationRoot, (name) => name < baselineEnd);
     const sourceUrl = databaseUrl(baseUrl, sourceDatabaseName);
     const config = `import { defineConfig, env } from 'prisma/config';\nexport default defineConfig({ schema: ${JSON.stringify(path.join(tempRoot, 'schema.prisma').replaceAll('\\', '/'))}, migrations: { path: ${JSON.stringify(migrationRoot.replaceAll('\\', '/'))} }, datasource: { url: env('DIRECT_URL') } });\n`;
@@ -300,7 +305,7 @@ async function main() {
     if (Number(unchangedAmbiguousRows.rows[0].total) !== 2 || Number(unchangedAmbiguousRows.rows[0].without_slug) !== 2) {
       throw new Error('Ambiguous TEDx legacy rows were mutated instead of being preserved for manual resolution.');
     }
-    process.stdout.write(`${JSON.stringify({ database: databaseName, baselineMigrations: 12, totalMigrations: 25, sanitizedDumpRestored: true, baselineRecoveryCopyPreserved: true, ambiguousLegacyRowsPreserved: true, ...result })}\n`);
+    process.stdout.write(`${JSON.stringify({ database: databaseName, baselineMigrations: baselineMigrationCount, totalMigrations: migrationNames.length, sanitizedDumpRestored: true, baselineRecoveryCopyPreserved: true, ambiguousLegacyRowsPreserved: true, ...result })}\n`);
   } finally {
     await rm(configPath, { force: true });
     await rm(ambiguityConfigPath, { force: true });
