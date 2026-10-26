@@ -145,7 +145,11 @@ invariante: retirar el rol (`DELETE` en `user_roles`) y deshabilitar la cuenta
 (`UPDATE` de `users.status`). Un `SELECT` previo en el servicio no basta:
 dos peticiones simultáneas de "retirar admin a X" y "deshabilitar a Y" —los
 dos últimos administradores— podrían pasar ambas si solo se verificara en la
-aplicación.
+aplicación. La migración `20261026130000_serialize_last_admin_guard` toma el
+mismo advisory lock transaccional antes de contar en ambas funciones. Así se
+serializan entre sí las revocaciones y deshabilitaciones; las pruebas
+`auth-db-constraints.integration.spec.ts` cubren la revocación doble y la
+carrera mixta.
 
 ## 2. Tokens de un solo uso
 

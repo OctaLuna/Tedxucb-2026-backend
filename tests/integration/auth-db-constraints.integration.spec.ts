@@ -72,6 +72,26 @@ describe('Restricciones del motor — tablas de auth (T028)', () => {
       expect(fulfilled).toHaveLength(1);
       expect(rejected).toHaveLength(1);
     });
+
+    it('serializa la revocacion de rol y la deshabilitacion concurrentes', async () => {
+      const admin1 = await seedUser({ email: 'mixto1@ucb.edu.bo', roles: ['ADMIN'] });
+      const admin2 = await seedUser({ email: 'mixto2@ucb.edu.bo', roles: ['ADMIN'] });
+
+      const results = await Promise.allSettled([
+        prismaTestClient.userRole.delete({ where: { userId_role: { userId: admin1.id, role: 'ADMIN' } } }),
+        prismaTestClient.user.update({ where: { id: admin2.id }, data: { status: 'DISABLED' } }),
+      ]);
+
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+      const activeAdmins = await prismaTestClient.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*)::bigint AS count
+        FROM user_roles ur
+        JOIN users u ON u.id = ur.user_id
+        WHERE ur.role = 'ADMIN' AND u.status = 'ACTIVE'
+      `;
+      expect(Number(activeAdmins[0]?.count)).toBe(1);
+    });
   });
 
   describe('auth_tokens es de un solo uso', () => {
