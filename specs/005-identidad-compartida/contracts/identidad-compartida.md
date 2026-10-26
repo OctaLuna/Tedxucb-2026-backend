@@ -1,83 +1,75 @@
-# Contrato de identidad compartida — borrador de diseño
+# Contrato implementado: identidad compartida y acceso por evento
 
-**Estado:** OAuth y autorizaciones siguen en diseño. El endpoint de apodo está implementado y probado localmente; el resto de rutas propuestas aún no está disponible.
+**Estado:** contrato de implementación local. Los controladores/DTO y el Swagger servido por `/api/docs` son la referencia del transporte; este documento recoge las reglas funcionales que Swagger no expresa por completo. Las verificaciones de Google con cuenta humana y SMTP externo son gates separados del contrato local.
 
-## Convenciones existentes
+## Convenciones
 
-Prefijo `/api/v1`; JSON; error uniforme `{statusCode,error,message,details?}`; UUID para recursos; fechas ISO UTC; autenticación por `Authorization: Bearer <accessToken>`. Las rutas existentes `/auth/login`, `/auth/refresh`, `/auth/logout`, `/me` conservan contrato hasta aprobar migración compatible.
+- Prefijo HTTP: `/api/v1`; JSON salvo upload multipart de avatar. Las rutas privadas reciben `Authorization: Bearer <accessToken>`.
+- Los errores de dominio usan `{ statusCode, error, message, details? }`; los códigos listados abajo son estables para que ambos frontends puedan reaccionar sin interpretar texto.
+- Las identidades, apodos y roles pertenecen a la cuenta global. Grants, datos operativos, puntos, selección y contenido privado se resuelven con evento. Los slugs soportados son `tedxucb` e `innovation-week`; los UUID se resuelven en el backend.
+- La whitelist solo autoriza un correo para uno o más eventos. No crea una cuenta ni concede roles. El correo se normaliza antes de persistirlo.
 
-## Sesión Google — propuesta
+## Google Identity Services
 
-El flujo debe elegir entre code flow backend callback o ID token validado por API. No definir todavía un `POST /auth/google` definitivo: payload, endpoint y respuesta dependen de OAuth, redirect, CSRF/state y sesión de dos dominios. El frontend no envía email como prueba ni recibe/almacena client secret. Google `sub` es identificador de proveedor; verificar iss, aud, exp, firma, nonce/state y `hd` Workspace cuando aplique.
+### `POST /auth/google/challenge`
 
-**Resultado esperado**: sesión de backend emitida únicamente tras credencial válida y permiso para contexto solicitado. El usuario se crea o se vincula una vez; no se asignan roles por provider claims. Respuesta debe incluir la cuenta mínima (`id`, `email`, `fullName`, `nickname`, `roles`, `status`) y estado de incorporación (`nicknameRequired`, perfil incompleto por evento, eventos accesibles). Campos finales requieren DTO y ejemplo OpenAPI después de fijar elegibilidad y titularidad externas.
+Sin body. Responde `200 { "nonce": "..." }`. El backend almacena el nonce de un uso por 300 segundos; límite 30 solicitudes por minuto.
 
-**Fallos que deben tener códigos estables**: credencial inválida/vencida, issuer/audience/nonce inválidos, correo no verificado, Workspace no válido, externo sin whitelist, dominio externo cuya titularidad no se pudo probar, usuario disabled, estado de cuenta no elegible, vínculo conflictivo, throttle, proveedor/base no disponible.
+### `POST /auth/google`
 
-## Perfil propio
+Body: `{ "credential": "<Google ID token>", "nonce": "<challenge>" }`. Responde `200` con `accessToken`, `refreshToken`, `expiresIn` y `user` (`id`, `email`, `fullName`, `nickname`, `nicknameRequired`, `roles`, `status`). El access token dura 900 segundos según configuración local actual; el cliente renueva mediante el endpoint de refresh existente.
 
-### `GET /api/v1/me`
+El backend verifica firma, issuer, audience, expiración, `sub`, `email_verified` y nonce de un solo uso con `google-auth-library`. Para `@ucb.edu.bo` exige `hd=ucb.edu.bo`. Gmail puede acreditar su propia dirección; otro dominio con `hd` coincidente se acepta como autoridad Google; el resto debe haber completado el desafío de titularidad externa. Una cuenta externa también requiere whitelist activa para al menos un evento, salvo una dirección de `ADMIN_EMAILS`. La allowlist administrativa se lee solo en el servidor y concede `ADMIN` más acceso a ambos eventos de forma idempotente y transaccional. Cuentas `PENDING`, `REJECTED`, `INVITED` y `DISABLED` no reciben sesión; Google no las reactiva.
 
-Sesión válida. Añadir `nickname` (nullable antes de completar), `nicknameRequired`, `events` o referencia equivalente y completar OpenAPI para la respuesta existente. No exponer el Google token ni detalles de identidad del proveedor.
+Errores principales: `401 INVALID_GOOGLE_CREDENTIAL`, `401 INVALID_GOOGLE_CHALLENGE`, `403 EMAIL_OWNERSHIP_REQUIRED`, `403 EMAIL_NOT_AUTHORIZED`, `403 ACCOUNT_NOT_ACTIVE`, `409 IDENTITY_CONFLICT`, `429 TOO_MANY_REQUESTS`, `503 GOOGLE_AUTH_UNAVAILABLE`.
 
-### `PATCH /api/v1/me/nickname` (propuesta)
+### Titularidad de correo externo
 
-Bearer requerido; aplica al usuario autenticado, sin aceptar `userId`.
+- `POST /auth/google/email-verification/request`: body anterior más `eventSlug`. Verifica la credencial y consume el nonce; exige whitelist activa para el evento. Envía un token aleatorio de un uso, persistido como hash y válido tres días. No emite sesión. Resultado `SENT`, `DELIVERY_FAILED` o `ALREADY_VERIFIED`.
+- `POST /auth/google/email-verification/confirm`: `{ "token": "..." }`. Consume el enlace una vez y acredita el par `Google sub + correo`; la persona inicia sesión Google otra vez para recibir sesión.
+- `POST /auth/identity-invitations/consume`: `{ "token": "..." }`. Confirma que una invitación de tres días sigue vigente y que el scope de ese mismo evento continúa autorizado. No crea usuario, scope ni sesión.
 
-```json
-{ "nickname": "Luna27" }
-```
+Las rutas de solicitud, confirmación y consumo tienen límites independientes. No hay endpoint de reenvío. El fallo SMTP se devuelve al administrador sin revertir whitelist ni guardar tokens en claro.
 
-Reglas: entre 3 y 24 caracteres normalizados, letras/números Unicode, sin símbolos, espacios o caracteres de control; normalización NFKC e insensible a mayúsculas; único globalmente comparado con clave canónica. El máximo de 24 es la decisión técnica adoptada para la implementación inicial.
+## Perfil e identidad
 
-Respuesta propuesta `200`:
+### `GET /me`
 
-```json
-{ "nickname": "Luna27", "nicknameKey": "luna27" }
-```
+Bearer requerido. Devuelve el usuario autenticado (`id`, `email`, `fullName`, `roles`, `status`, `nickname`). Nunca acepta un `userId` suministrado por el cliente. Puede consultarse durante el onboarding aunque aún falte apodo.
 
-`nicknameKey` puede omitirse en respuesta pública si no ayuda al cliente. Errores mínimos: `400 INVALID_NICKNAME`, `409 NICKNAME_TAKEN`, `401 UNAUTHENTICATED`. Concurrencia se resuelve mediante índice único, no preconsulta.
+### `PATCH /me/nickname`
 
-## Eventos visibles y autorización
+Bearer requerido. Body `{ "nickname": "Luna27" }`; respuesta `200 { "nickname": "Luna27" }`. Se normaliza con NFKC y se guarda una clave canónica global insensible a mayúsculas. Se admiten de 3 a 24 letras o números Unicode; se rechazan espacios, símbolos y controles. El índice único PostgreSQL resuelve carreras. Errores: `400 INVALID_NICKNAME`, `409 NICKNAME_TAKEN`, `403 ACCOUNT_NOT_ACTIVE`.
 
-### `GET /api/v1/me/events` (propuesta)
+### `GET /me/events`
 
-Bearer; devuelve solo eventos habilitados para la cuenta y estado actual. Cada respuesta tiene `id`, slug público estable acordado, nombre y permisos funcionales del participante. No revela a qué otros eventos tiene acceso otro usuario.
+Bearer requerido, incluida una cuenta en onboarding. Devuelve `{ "data": [{ "id", "slug", "name", ... }] }` solo para la identidad activa: un Workspace UCB verificado recibe los dos eventos base; cuentas externas reciben únicamente sus grants no revocados. Cuenta inexistente/inactiva: `403 ACCOUNT_NOT_ACTIVE`.
 
-### Recursos del evento
+## Administración de acceso por evento
 
-Los endpoints de contenido y actividades deberán expresar el evento con una ruta como `/api/v1/events/:eventId/activities` o resolver un slug público registrado del lado del servidor. Se elige una sola convención y se aplica consistentemente. Guard/servicio valida sesión, estado de cuenta, permiso de evento y rol/relación específica requerida. Nunca se confía en `eventId` elegido por el cliente sin autorización. Errores: `401 UNAUTHENTICATED`, `403 EVENT_ACCESS_DENIED`, `404 NOT_FOUND` cuando revelar existencia no es apropiado.
+Las tres rutas requieren `ADMIN` activo en la base; un rol incluido en un JWT viejo no basta. Un administrador solo opera dentro de sus propios eventos.
 
-## Whitelist administrativa — propuesta
+- `GET /admin/event-access?page=1&limit=20&email=&status=active`: devuelve `{ data, meta }`; busca correo normalizado y pagina grupos de correo completos, con todos sus eventos visibles para el actor. `status` admite `active`, `revoked` y `all`; `limit` máximo 100.
+- `POST /admin/event-access`: `{ "email": "persona@example.com", "eventIds": ["<uuid>"] }`. `eventIds` puede omitirse para seleccionar todos los eventos que administra el actor (ambos cuando administra ambos). Reemplaza atómicamente el conjunto dentro del scope del actor; no afecta grants fuera de ese scope. Repetir la misma operación es idempotente. No acepta rol ni crea cuenta.
+- `DELETE /admin/event-access/:id`: revoca un grant dentro del scope del administrador; responde `204`.
+- `POST /admin/identity-invitations`: `{ "email": "persona@example.com", "eventSlug": "innovation-week" }`. Requiere whitelist ya activa para ese correo/evento y scope ADMIN. Envía el enlace al origen configurado del evento y responde con `SENT` o `DELIVERY_FAILED` y vencimiento. La invitación no concede autorización.
 
-ADMIN activo con acceso al evento solicitado. Las rutas exactas se fijan tras revisar convención y paginación actuales. Operaciones necesarias: listar; crear/actualizar autorización; seleccionar uno o ambos eventos (default ambos en una nueva autorización); revocar/reabrir; emitir email de invitación para un correo ya autorizado; consultar estado y vencimiento del enlace si es necesario para el operador.
+Otros errores: `401 UNAUTHENTICATED`, `403 FORBIDDEN`/`EVENT_ACCESS_DENIED`, `404 EVENT_NOT_FOUND`/`NOT_FOUND`, `429 TOO_MANY_REQUESTS`, `503 FRONTEND_URL_UNAVAILABLE`.
 
-Contrato de implementación inicial: `GET /admin/event-access?page=1&limit=20&email=&status=active` devuelve `{data: [...], meta: {page, limit, total, totalPages}}` con permisos y eventos. La búsqueda por correo no distingue mayúsculas y pagina grupos de correos, de modo que todos los scopes de una dirección aparecen juntos; `status` acepta `active`, `revoked` o `all` y `limit` está acotado a 100. `POST /admin/event-access` sustituye atómicamente el conjunto de eventos autorizados para el correo y devuelve las filas activas; `DELETE /admin/event-access/:id` revoca una fila y responde 204. Omitir `eventIds` selecciona TEDxUCB e Innovation Week por sus slugs estables; si no están configurados ambos se responde error de configuración en lugar de autorizar un conjunto incompleto. El servidor consulta el rol y estado actual del administrador, incluso si un JWT anterior todavía los incluye.
+## Contexto de evento y recursos
 
-Forma de alta propuesta:
+- Lecturas públicas reciben el slug registrado, por ejemplo `/public/event?slug=tedxucb`, `/public/speakers?eventSlug=innovation-week`, `/public/program?eventSlug=tedxucb` y `/public/live?eventSlug=innovation-week`.
+- Las rutas privadas de actividades, perfiles operativos, puntos, ranking, postulaciones, programa/En Vivo, selección y entradas validan sesión, estado, rol y permiso del evento en guard/servicio. Los recursos identificados por UUID vuelven a comprobar que su evento pertenece al actor; no se confía en ocultar botones en la UI.
+- Las constraints compuestas y triggers impiden relacionar filas de eventos distintos. El ledger histórico no se reescribe: la propiedad por evento se conserva en su tabla lateral y la proyección de puntos es por evento.
 
-```json
-{
-  "email": "persona@ejemplo.com",
-  "eventIds": ["<uuid-evento-a>", "<uuid-evento-b>"],
-  "sendInvitation": true
-}
-```
+## Avatar 2D opcional
 
-`eventIds` se valida contra catálogo; omisión significa ambos eventos solo para operación inicial y queda explícita en la respuesta. La dirección se normaliza. No se acepta rol, estado de usuario ni identidad Google en este DTO. `sendInvitation` emite un token aleatorio, almacena hash y entrega email después del commit; expiry tres días, uso único. Si email falla, el acceso autorizado permanece; el endpoint responde de forma que el operador pueda ver el estado del envío sin duplicar la autorización. No hay reenvío controlado en la etapa inicial.
+- `GET /me/avatar-session` emite un token puente HS256 de 90 segundos con issuer `tedx-ucb-backend`, audience `avatar-2d`, subject de usuario, scope `avatar:claim` y `jti`.
+- `POST /me/avatar-session/revocation-token` emite el scope `avatar:revoke`. El servicio Avatar 2D valida firma, claims, expiración y replay, vincula el draft invitado al usuario y permite revocar sesiones. El cliente no puede asignar propiedad con un `avatarId` o mensaje de iframe.
+- El editor y la personalización son opcionales; una falla del servicio no impide continuar el registro.
 
-La lista sigue válida hasta revocación manual; el enlace expira a los tres días y no crea autorización. El acceso se concede por whitelist activa y prueba de identidad/email suficientes. La invitación básica no es invitación staff (`/auth/accept-invitation`) y no pide contraseña. Cada token persiste el `eventId` al que apunta el enlace. Consumirlo requiere que siga activo el permiso de ese mismo evento, aunque el correo conserve acceso a otro evento. Si el correo falla, el permiso y el token permanecen para que la organización gestione otro envío manualmente.
+## Auditoría y release
 
-Errores: correo inválido `400`; evento desconocido `404/422` según convención; duplicado se convierte en actualización idempotente o `409` según la operación aprobada; no ADMIN `403`; proveedor de correo falla tras commit con estado explícito; exceso de uso `429`.
+La excepción de auditoría funcional para vínculo Google, whitelist, invitación y cambio de scope está registrada en [ADR-010](../../../docs/decisiones/ADR-010-identidad-compartida-y-auditoria-temporal.md). No elimina auditoría de otros módulos y sigue siendo gate constitucional antes del release. No aplicar migraciones a Supabase productivo desde este runbook.
 
-## Invitación externa
-
-Emitir una invitacion exige que quien la solicita sea ADMIN activo y conserve acceso al evento destino; la whitelist activa del destinatario se valida por separado. El enlace usa el origen configurado para el evento, lleva un token aleatorio guardado como hash y vence en tres días. El token es de un solo uso y no concede sesión ni permiso; al consumirlo el backend comprueba el mismo scope activo de la whitelist. No existe endpoint de reenvío. La invitación tampoco verifica titularidad por sí sola: el login Google valida firma, audience, expiración, `email_verified` y nonce de un solo uso. Correos `@ucb.edu.bo` requieren `hd=ucb.edu.bo`; Gmail se considera autoridad sobre su dirección; otros dominios requieren un enlace de verificación de tres días ligado a `subject` y correo antes de recibir sesión.
-
-## Flujo avatar 2D
-
-`avatar-integration-contract` valida protocolo de iframe y referencia visual, pero hoy `avatar-2d` usa bearer anónimo. Las operaciones para vincular referencia con `userId`, recuperar/cambiar dueño, migrar guest o almacenar credenciales no forman parte del contrato presente. Se mantienen como gate de despliegue. Continuar sin avatar no requiere endpoint del proveedor.
-
-## Cambios OpenAPI
-
-Cada endpoint nuevo requiere DTO con decoradores/metadata, respuestas nominales, ejemplos de éxito, código y error, `@ApiBearerAuth` y descripción de scope. Swagger no debe publicar claims inventados ni respuestas genéricas. El spec exacto se actualiza junto con pruebas aprobadas y código.
+La matriz requisito→código→prueba y su estado por gate están en [trazabilidad-requisitos.md](../trazabilidad-requisitos.md). Las rutas desplegadas se contrastan contra Swagger local; el flujo real OAuth y SMTP externo requieren sus credenciales/entorno y no se consideran demostrados por fixtures.
