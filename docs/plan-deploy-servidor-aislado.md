@@ -1,6 +1,6 @@
 # Plan de despliegue aislado: TEDxUCB + Innovation Week
 
-Estado: piloto aislado ya desplegado en el servidor con `release-20261024`; el paquete local `release-20261026-v2` está construido y verificado, pero aún no se ha promovido. El inventario SSH de solo lectura del 2026-10-26 está en [`inventario-servidor-2026-10-26.md`](inventario-servidor-2026-10-26.md). Antes de actualizar faltan backup con restauración aislada verificada, reconciliar `IMAGE_TAG`, evaluar el margen de disco y ejecutar las dos migraciones faltantes. Los dominios están en Caddy pero todavía no resuelven por DNS. La entrega SMTP externa sigue aplazada como indicó el operador.
+Estado: piloto aislado actualizado a `release-20261026-v2` el 2026-10-26. Las cinco imágenes se verificaron por SHA-256 antes de cargarlas; la base se respaldó y restauró en una instancia temporal aislada antes de aplicar las dos migraciones faltantes. Las 29 migraciones están al día y los servicios pasaron sus healthchecks internos. El inventario inicial está en [`inventario-servidor-2026-10-26.md`](inventario-servidor-2026-10-26.md). Los dominios están en Caddy pero todavía no resuelven por DNS; el acceso público/TLS y login desde esos orígenes siguen sin comprobarse. La entrega SMTP externa continúa aplazada como indicó el operador.
 
 ## 1. Objetivo y límites
 
@@ -137,9 +137,9 @@ Comparar el inventario/hash de Amazonia antes y después. Si cambia cualquier se
 - No usar `docker system prune`, `docker volume prune`, `docker compose down` sin `-p` y `-f` explícitos, ni comandos que nombren recursos de Amazonia.
 - Después de rollback, comprobar que Amazonia sigue saludable, sus hashes/volúmenes no cambiaron y Craby continúa entregando sus rutas previas.
 
-## 10. Criterios para autorizar ejecución
+## 10. Criterios pendientes para habilitar el acceso público
 
-El piloto técnico comienza solo cuando estos puntos están cerrados:
+El piloto está desplegado de forma aislada. Antes de habilitar uso público deben cerrarse y evidenciarse estos puntos:
 
 - Dockerfiles/Compose de backend, ambos frontends y Avatar 2D construyen y funcionan localmente como stack completo.
 - Checklist SDD reconciliado, T031 resuelto y gates de release/auditoría aprobados o documentados conforme a la decisión del operador.
@@ -150,4 +150,4 @@ El piloto técnico comienza solo cuando estos puntos están cerrados:
 
 Para un release público, además deben cerrarse los gates de release del SDD, incluida la decisión documentada de auditoría aplazada y revisión de riesgos (T052/T072), la estrategia de migración si la base deja de ser vacía y la aprobación de contenido editorial que se quiera publicar.
 
-El operador autorizó el acceso SSH y la implementación del plan. Esa autorización no permite modificar recursos de Amazonia/Porerekua ni hacer limpiezas globales. El piloto ya existe; cualquier promoción debe actualizar solo el proyecto `tedx-facultyweek-platform`, conservar datos/volúmenes, tener rollback preparado y comprobar los servicios antes de cambiar rutas. El release público requiere sus gates adicionales.
+El operador autorizó el acceso SSH y la implementación del plan. Esa autorización no permite modificar recursos de Amazonia/Porerekua ni hacer limpiezas globales. La promoción v2 se aplicó solo al proyecto `tedx-facultyweek-platform`; se conservaron datos/volúmenes y las imágenes previas. El release público requiere cerrar los gates adicionales de esta sección.
