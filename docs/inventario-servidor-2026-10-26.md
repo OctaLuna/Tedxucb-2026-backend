@@ -66,7 +66,11 @@ reiniciaron servicios remotos.
 - El proyecto está en `release-20261026-v2`: PostgreSQL, Redis, backend,
   Innovation Week, TEDx y Avatar API están saludables; el editor responde
   HTTP 200. Innovation Week y TEDx superaron sus healthchecks HTTP; Caddy
-  validó sin cambios de configuración. Porerekua/Amazonia permaneció intacto.
+  validó sin cambios de configuración. Una petición CORS a la API aceptó los
+  dos origins de las webs y bloqueó un origin ajeno. El endpoint público de
+  programa devolvió 26 elementos para `innovation-week` y 0 para `tedxucb`,
+  respetando el alcance de cada evento y dejando el fallback TEDx activo.
+  Porerekua/Amazonia permaneció intacto.
 - El host quedó con aproximadamente 6.6 GiB libres de 48 GiB. No se eliminó el
   build cache global aunque Docker lo reporta reclaimable.
 
