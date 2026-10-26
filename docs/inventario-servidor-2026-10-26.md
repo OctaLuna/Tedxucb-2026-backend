@@ -23,12 +23,12 @@ reiniciaron servicios remotos.
 - Los contenedores activos usan `release-20261024`. El estado de Prisma indica
   que la base está al día con las 27 migraciones incluidas en esa imagen.
 - El paquete local posterior es `release-20261026-v2` y tiene 29 migraciones.
-  Aún no está cargado en el host. Antes de promoverlo se requiere backup
-  verificable y ejecutar controladamente las dos migraciones faltantes.
-- El `.env` remoto tiene modo `0600`. Su `IMAGE_TAG` declara `release-20261023`,
-  aunque los contenedores activos usan `release-20261024`. No imprimir ni
-  copiar valores de secretos; corregir esta deriva al preparar el upgrade para
-  evitar un rollback accidental al ejecutar Compose.
+  Se cargó después de respaldar la base y ejecutar controladamente las dos
+  migraciones faltantes.
+- El `.env` remoto tenía modo `0600` y declaraba `release-20261023`, aunque los
+  contenedores activos usaban `release-20261024`. Antes de promover, se guardó
+  copia privada modo `0600` y se actualizó el tag a `release-20261026-v2`. No se
+  imprimieron ni copiaron valores de secretos al repositorio.
 - Los nombres de variables presentes incluyen `SMTP_HOST` y `SMTP_PORT`, pero
   el inventario no encontró `SMTP_USER`, `SMTP_PASSWORD` ni `MAIL_FROM`. La
   prueba de entrega SMTP externo sigue pendiente según la secuencia acordada.
@@ -47,12 +47,30 @@ reiniciaron servicios remotos.
 - `porerekua-form-1` pertenece al proyecto Compose `porerekua` y a su propio
   directorio. Se dejó intacto junto con todo el proyecto Porerekua/Amazonia.
 
-## Siguiente paso seguro
+## Promoción v2 y resultado
 
-Antes de sustituir imágenes del piloto: obtener backup consistente de la base,
-validar su archivo y restaurarlo en una instancia de verificación aislada;
-comprobar espacio suficiente sin hacer prune global; alinear `IMAGE_TAG` con la
-versión elegida; cargar los cinco TAR y verificar SHA-256; aplicar migraciones
-una sola vez; arrancar y comprobar healthchecks. Mantener las imágenes y
-volúmenes anteriores para rollback. No habilitar pruebas externas hasta que
-los dominios resuelvan y se cierre SMTP.
+- Se generó un `pg_dump -Fc` privado de 121067 bytes, modo `0600`; `pg_restore`
+  pudo listar el archivo y restaurarlo sin errores en un PostgreSQL temporal
+  aislado. Esa instancia temporal y su volumen anónimo se eliminaron al acabar.
+- Avatares 2D y uploads se archivaron por separado y se validó la integridad de
+  ambos TAR. Se guardó también una copia del `.env` con modo `0600` antes de
+  corregir su `IMAGE_TAG` desfasado.
+- Los cinco TAR y el manifiesto se transfirieron al directorio privado del
+  proyecto. SHA-256 remoto coincidió con el manifiesto local para cada imagen
+  y para el manifiesto; no se usó `docker prune`.
+- Se detuvieron únicamente los cinco servicios de aplicación del proyecto
+  durante la migración. PostgreSQL y Redis conservaron sus volúmenes activos.
+  Se aplicaron `20261024020000_seed_innovation_week_program` y
+  `20261026130000_serialize_last_admin_guard`; Prisma reporta 29 migraciones al
+  día. La base conserva 2 eventos y 0 usuarios; el cronograma carga 26 elementos.
+- El proyecto está en `release-20261026-v2`: PostgreSQL, Redis, backend,
+  Innovation Week, TEDx y Avatar API están saludables; el editor responde
+  HTTP 200. Innovation Week y TEDx superaron sus healthchecks HTTP; Caddy
+  validó sin cambios de configuración. Porerekua/Amazonia permaneció intacto.
+- El host quedó con aproximadamente 6.6 GiB libres de 48 GiB. No se eliminó el
+  build cache global aunque Docker lo reporta reclaimable.
+
+Quedan pendientes DNS para ambos hosts, certificados TLS, login Google real en
+los orígenes desplegados y la configuración/prueba de entrega SMTP externa.
+Hasta resolver DNS no puede hacerse aceptación HTTP pública; hasta cerrar
+SMTP, las invitaciones por correo no están listas para uso público.
