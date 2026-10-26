@@ -122,3 +122,11 @@ La verificación segura de `.env` encontró ausente el client ID en backend, Inn
 - El backend activo emite nonce por `/auth/google/challenge` con HTTP 200 y CORS exacto para `http://localhost:3000` y `http://localhost:5173`.
 - `GOOGLE_CLIENT_ID` ahora es obligatorio al arrancar con `NODE_ENV=production`; permanece opcional en desarrollo. `env-validation.spec.ts`: 7/7; `npm run build`: aprobado.
 - Los contratos `auth-google` y `event-scope` volvieron a pasar: 2 suites, 18/18 pruebas. La autenticación Google con credencial real sigue sin verificación interactiva.
+
+## Validación local final (26 de octubre de 2026)
+
+- Backend: `npm run build` y la suite local completa pasaron; resultado más reciente: 71/71 suites y 412/412 pruebas. La prueba de migraciones validó las 28 migraciones en una base aislada y no modificó Supabase.
+- TEDx, Innovation Week y Avatar 2D pasaron sus verificaciones de tipo, lint/build y pruebas documentadas en sus repositorios. API, ambos sitios, API/editor de Avatar y Mailpit respondieron HTTP 200 en local.
+- Invitación de punta a punta desde la API local: un administrador sintético con scope de Innovation Week invitó un correo de prueba autorizado; Mailpit recibió el mensaje, el enlace apuntó al frontend local y la invitación expiraba en tres días. La invitación, whitelist y usuario sintéticos se eliminaron al terminar; quedó un único administrador de desarrollo activo y se conservó el trigger RF-119. El mensaje de prueba también se eliminó de Mailpit.
+- Se verificaron las solicitudes de challenge Google y CORS para ambos orígenes locales. No se completó un inicio interactivo con una cuenta Google: esta sesión no tenía navegador disponible. Falta confirmar emisión de credencial, callback, creación/vínculo de identidad, rol allowlist y navegación autenticada con una cuenta autorizada.
+- La entrega por Mailpit local está comprobada. Configurar y validar SMTP externo sigue reservado al último paso solicitado; no se envió correo externo. El despliegue al servidor queda condicionado a esa configuración y a completar la comprobación OAuth interactiva.
