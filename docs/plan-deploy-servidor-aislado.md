@@ -1,6 +1,6 @@
 # Plan de despliegue aislado: TEDxUCB + Innovation Week
 
-Estado: plan para preparar un primer despliegue aislado de prueba; todavía no ejecutar en el servidor. El operador confirma que las pruebas funcionales previas se realizaron; conservar sus evidencias y no repetir la matriz local completa sin motivo.
+Estado: piloto aislado ya desplegado en el servidor con `release-20261024`; el paquete local `release-20261026-v2` está construido y verificado, pero aún no se ha promovido. El inventario SSH de solo lectura del 2026-10-26 está en [`inventario-servidor-2026-10-26.md`](inventario-servidor-2026-10-26.md). Antes de actualizar faltan backup con restauración aislada verificada, reconciliar `IMAGE_TAG`, evaluar el margen de disco y ejecutar las dos migraciones faltantes. Los dominios están en Caddy pero todavía no resuelven por DNS. La entrega SMTP externa sigue aplazada como indicó el operador.
 
 ## 1. Objetivo y límites
 
@@ -150,4 +150,4 @@ El piloto técnico comienza solo cuando estos puntos están cerrados:
 
 Para un release público, además deben cerrarse los gates de release del SDD, incluida la decisión documentada de auditoría aplazada y revisión de riesgos (T052/T072), la estrategia de migración si la base deja de ser vacía y la aprobación de contenido editorial que se quiera publicar.
 
-Hasta cumplir los criterios del piloto, el plan no autoriza SSH de escritura, cambios de gateway ni despliegue. El release público requiere sus gates adicionales.
+El operador autorizó el acceso SSH y la implementación del plan. Esa autorización no permite modificar recursos de Amazonia/Porerekua ni hacer limpiezas globales. El piloto ya existe; cualquier promoción debe actualizar solo el proyecto `tedx-facultyweek-platform`, conservar datos/volúmenes, tener rollback preparado y comprobar los servicios antes de cambiar rutas. El release público requiere sus gates adicionales.
