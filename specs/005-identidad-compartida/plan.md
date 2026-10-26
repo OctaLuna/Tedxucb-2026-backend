@@ -226,7 +226,7 @@ La tabla anterior corresponde al estado inicial del plan y queda supersedida por
 
 | Área | Estado comprobado | Evidencia / gate pendiente |
 |---|---|---|
-| Identidad Google y sesión compartida | Implementada y probada con fixtures locales: verificación de ID token, nonce de un uso, link provider+subject, estados de cuenta, refresh/logout y respuesta de perfil/eventos. | Contratos Google y `/me` aprobados. El challenge local responde 503 mientras no haya `GOOGLE_CLIENT_ID`; falta recorrido real de navegador con proyecto Google del propietario. |
+| Identidad Google y sesión compartida | Implementada y probada localmente: verificación criptográfica del ID token con clave efímera, nonce de un uso, link provider+subject, estados de cuenta, refresh/logout y respuesta de perfil/eventos. | El challenge local responde 200 con CORS exacto para ambos orígenes. Falta login humano y recorrido autenticado de ambos frontends con el proyecto Google del propietario. |
 | Apodo compartido | Implementado en backend y ambos frontends; clave canónica única y validación alfanumérica. | Contratos de unicidad y onboarding aprobados en base local; recorrido OAuth real pendiente por la misma credencial. |
 | Whitelist, invitación y verificación de correo | Scopes por evento, UI admin Innovation Week, enlaces por origen del evento, token hash/TTL/uso único. | Se aprobaron 43 contratos focalizados y un flujo HTTP→SMTP→Mailpit real. Falta proveedor SMTP externo/entrega controlada. |
 | Avatar 2D | Puente backend de tokens cortos `claim`/`revoke`; servicio 2D conserva y vincula el draft de invitado a la identidad. | Contratos de token y pruebas del servicio local aprobados; falta validación visual con sesión Google real y despliegue coordinado. |

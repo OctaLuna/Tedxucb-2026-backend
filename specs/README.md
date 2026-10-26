@@ -39,6 +39,13 @@ Avatar 2D. Los detalles verificados y los gates pendientes de OAuth real,
 SMTP externo, suite completa y preparación de release están en
 [avance-integracion-2026-10-23.md](./005-identidad-compartida/avance-integracion-2026-10-23.md).
 
+La [matriz de trazabilidad RF-501–RF-517](./005-identidad-compartida/trazabilidad-requisitos.md)
+relaciona cada requisito con su implementación, pruebas y gates externos. El
+contrato HTTP y el modelo de datos reconciliados reflejan el estado actual del
+backend; Google humano, SMTP externo y release siguen sujetos a sus gates.
+La [revisión de riesgos local](./005-identidad-compartida/revision-riesgos-local-2026-10-26.md)
+registra controles comprobados y riesgos aún no aceptados para producción.
+
 ## Orden de trabajo recomendado
 
 `002` no depende del motor de puntos y puede publicarse mucho antes. Conviene
