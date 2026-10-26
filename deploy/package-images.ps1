@@ -1,7 +1,8 @@
 param(
     [string]$Tag = (Get-Date -Format 'yyyyMMdd-HHmmss'),
     [string]$WebLandingRoot = (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent),
-    [string]$Components = 'backend,tedx,innovation,avatar-service,avatar-editor'
+    [string]$Components = 'backend,tedx,innovation,avatar-service,avatar-editor',
+    [string]$BuildCaFile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,6 +11,15 @@ $tedxRoot = Join-Path $WebLandingRoot 'TedX-UCB\tedx-ucb-landing'
 $innovationRoot = Join-Path $WebLandingRoot 'UcbInnovationWeek\innovation-week-landing'
 $avatarRoot = Join-Path $WebLandingRoot 'UcbInnovationWeek\avatar-2d'
 $artifacts = Join-Path $PSScriptRoot 'artifacts'
+$buildCaPath = $null
+$temporaryDockerfiles = $null
+if ($BuildCaFile) {
+    if (-not (Test-Path -LiteralPath $BuildCaFile -PathType Leaf)) {
+        throw "No existe el certificado CA de build: $BuildCaFile"
+    }
+    $buildCaPath = (Resolve-Path -LiteralPath $BuildCaFile).Path
+    $temporaryDockerfiles = Join-Path ([IO.Path]::GetTempPath()) "tedx-build-dockerfiles-$([guid]::NewGuid().ToString('N'))"
+}
 
 foreach ($path in @($backendRoot, $tedxRoot, $innovationRoot, $avatarRoot)) {
     if (-not (Test-Path -LiteralPath $path)) { throw "No existe el repositorio requerido: $path" }
@@ -30,6 +40,34 @@ function Get-SourceInfo([string]$path) {
     if ($LASTEXITCODE -ne 0) { $revision = 'no-git' }
     $dirty = (& git -C $path status --porcelain 2>$null)
     return "$revision$(if ($dirty) { '-dirty' })"
+}
+
+function Get-BuildDockerfile($item) {
+    if (-not $buildCaPath) { return $item.Dockerfile }
+
+    $content = Get-Content -Raw -LiteralPath $item.Dockerfile
+    $secretMount = ' --mount=type=secret,id=build_ca,target=/tmp/build-ca.pem,required=true '
+    if ($item.Component -eq 'tedx') {
+        $originalPrepare = 'RUN corepack enable && corepack prepare pnpm@11.1.2 --activate'
+        $replacementPrepare = "RUN$secretMount corepack enable && NODE_EXTRA_CA_CERTS=/tmp/build-ca.pem corepack prepare pnpm@11.1.2 --activate"
+        $originalInstall = 'RUN pnpm install --frozen-lockfile'
+        $replacementInstall = "RUN$secretMount NODE_EXTRA_CA_CERTS=/tmp/build-ca.pem pnpm install --frozen-lockfile"
+        if (-not $content.Contains($originalPrepare) -or -not $content.Contains($originalInstall)) {
+            throw 'No se encontraron los pasos de Corepack/pnpm esperados para inyectar la CA de build.'
+        }
+        $content = $content.Replace($originalPrepare, $replacementPrepare).Replace($originalInstall, $replacementInstall)
+    } else {
+        $originalInstall = 'RUN npm ci'
+        $replacementInstall = "RUN$secretMount NODE_EXTRA_CA_CERTS=/tmp/build-ca.pem npm ci"
+        if (-not $content.Contains($originalInstall)) {
+            throw "No se encontró el paso npm ci en el Dockerfile de $($item.Component)."
+        }
+        $content = $content.Replace($originalInstall, $replacementInstall)
+    }
+
+    $temporaryDockerfile = Join-Path $temporaryDockerfiles "$($item.Component).Dockerfile"
+    [IO.File]::WriteAllText($temporaryDockerfile, $content, [Text.UTF8Encoding]::new($false))
+    return $temporaryDockerfile
 }
 
 $innovationEnv = Read-DotEnv (Join-Path $innovationRoot 'frontend\.env.local')
@@ -64,20 +102,36 @@ $selectedComponents = @($Components -split ',' | ForEach-Object { $_.Trim() } | 
 $selectedImages = @($images | Where-Object { $_.Component -in $selectedComponents })
 if (-not $selectedImages.Count) { throw "No hay componentes reconocidos: $Components" }
 
-foreach ($item in $selectedImages) {
-    $image = "$($item.Name):$Tag"
-    Write-Host "Building $image"
-    $buildArgs = @('buildx', 'build', '--platform', 'linux/amd64', '--load', '--file', $item.Dockerfile, '--tag', $image) + $item.Args + @($item.Context)
-    & docker @buildArgs
-    if ($LASTEXITCODE -ne 0) { throw "Falló la construcción de $image" }
+if ($temporaryDockerfiles) { New-Item -ItemType Directory -Path $temporaryDockerfiles | Out-Null }
+try {
+    foreach ($item in $selectedImages) {
+        $image = "$($item.Name):$Tag"
+        Write-Host "Building $image"
+        $dockerfile = Get-BuildDockerfile $item
+        $buildArgs = @('buildx', 'build', '--platform', 'linux/amd64', '--load', '--file', $dockerfile, '--tag', $image) + $item.Args
+        if ($buildCaPath) { $buildArgs += @('--secret', "id=build_ca,src=$buildCaPath") }
+        $buildArgs += @($item.Context)
+        & docker @buildArgs
+        if ($LASTEXITCODE -ne 0) { throw "Falló la construcción de $image" }
 
-    $archive = Join-Path $artifacts "$($item.Name)-$Tag.tar"
-    & docker save --output $archive $image
-    if ($LASTEXITCODE -ne 0) { throw "Falló la exportación de $image" }
-    $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
-    $manifest = [System.Collections.Generic.List[string]]::new([string[]](@($manifest | Where-Object { $_ -notmatch "^$([regex]::Escape($image)) sha256=" })))
-    $manifest.Add("$image sha256=$hash bytes=$((Get-Item -LiteralPath $archive).Length)")
-    $manifest | Set-Content -LiteralPath $manifestPath -Encoding ascii
+        $archive = Join-Path $artifacts "$($item.Name)-$Tag.tar"
+        & docker save --output $archive $image
+        if ($LASTEXITCODE -ne 0) { throw "Falló la exportación de $image" }
+        $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
+        $manifest = [System.Collections.Generic.List[string]]::new([string[]](@($manifest | Where-Object { $_ -notmatch "^$([regex]::Escape($image)) sha256=" })))
+        $manifest.Add("$image sha256=$hash bytes=$((Get-Item -LiteralPath $archive).Length)")
+        $manifest | Set-Content -LiteralPath $manifestPath -Encoding ascii
+    }
+}
+finally {
+    if ($temporaryDockerfiles) {
+        $resolvedTemp = [IO.Path]::GetFullPath($temporaryDockerfiles)
+        $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+        if (-not $resolvedTemp.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Ruta temporal inesperada; no se eliminarán Dockerfiles temporales.'
+        }
+        Remove-Item -LiteralPath $resolvedTemp -Recurse -Force
+    }
 }
 
 Write-Host "Artefactos y manifiesto creados en $artifacts"
