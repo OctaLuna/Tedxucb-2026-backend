@@ -19,7 +19,9 @@ revisiones comprometidas:
 
 El script construye imágenes `linux/amd64`, las exporta a TAR en
 `deploy/artifacts/` y escribe `manifest-<tag>.txt` con las revisiones fuente,
-tamaño y SHA-256. Verificar el manifiesto antes de transferir los archivos.
+tamaño y SHA-256. Rechaza cambios trackeados sin commit y marca si una fuente
+contiene archivos no trackeados. Verificar el manifiesto antes de transferir
+los archivos.
 El `GOOGLE_CLIENT_ID` público de ambos frontends debe existir y coincidir;
 ningún secreto de servidor se incorpora a las imágenes.
 

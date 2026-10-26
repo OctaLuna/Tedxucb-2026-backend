@@ -38,8 +38,10 @@ function Read-DotEnv([string]$path) {
 function Get-SourceInfo([string]$path) {
     $revision = (& git -C $path rev-parse --short HEAD 2>$null)
     if ($LASTEXITCODE -ne 0) { $revision = 'no-git' }
-    $dirty = (& git -C $path status --porcelain 2>$null)
-    return "$revision$(if ($dirty) { '-dirty' })"
+    $trackedChanges = (& git -C $path status --porcelain --untracked-files=no 2>$null)
+    if ($trackedChanges) { throw "Hay cambios trackeados sin commit en $path; empaqueta desde una revisión confirmada." }
+    $untracked = (& git -C $path ls-files --others --exclude-standard 2>$null)
+    return "$revision$(if ($untracked) { '-untracked' })"
 }
 
 function Get-BuildDockerfile($item) {
