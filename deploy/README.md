@@ -1,14 +1,14 @@
 # Empaquetado de la plataforma
 
 El stack de servidor está definido en `compose.yaml`: PostgreSQL, Redis,
-migración one-shot, API compartida, TEDx, Innovation Week, Avatar 2D API y
+migración one-shot, API compartida, TEDx, Innovation Week, IDEATHON, Avatar 2D API y
 editor. El gateway Caddy existente se configura por separado con
 `caddy-routes.caddyfile`; no se debe reemplazar el gateway compartido con el
 proyecto de Amazonia.
 
 ## Construir imágenes
 
-Desde el backend, con Docker Buildx disponible y los cuatro repositorios en
+Desde el backend, con Docker Buildx disponible y los cinco repositorios en
 revisiones comprometidas:
 
 ```powershell
@@ -34,7 +34,7 @@ credenciales en el repositorio o en los TAR.
 
 ## Carga en el servidor
 
-Transferir los cinco TAR y el manifiesto; comprobar sus SHA-256 y cargarlos con
+Transferir los seis TAR y el manifiesto; comprobar sus SHA-256 y cargarlos con
 `docker load`. Preparar `.env` en el servidor a partir de `.env.example`,
 configurar `IMAGE_TAG` con el tag empaquetado y confirmar que la red externa
 `tedx-facultyweek-edge` ya está conectada al Caddy existente. Aplicar las
@@ -48,3 +48,10 @@ La primera ejecución debe seguir el runbook de deploy con backup, estado de
 migraciones y pruebas de salud antes de habilitar tráfico. No ejecutar
 `down -v` ni modificar la red, volúmenes o configuración del proyecto
 existente de Amazonia.
+
+
+## IDEATHON
+
+IDEATHON es actualmente una SPA informativa independiente, sin inicio de sesion ni llamadas a la API compartida. El empaquetado requiere Bun 1.4+ en el equipo de build, ejecuta una instalacion congelada y compila `dist` antes de crear la imagen Nginx. El host Caddy es `ideathon.sis-ucb.site`; Cloudflare necesita un registro `A` proxied con ese nombre hacia `201.131.41.89`. Caddy enruta internamente al servicio `ideathon-web:80`.
+
+La biblioteca de videos queda desactivada hasta que esten disponibles los MP4 aprobados. La ruta `/videos`, sus entradas de navegacion y llamadas desde las paginas redirigen a Inicio o estan ocultas. El manifiesto y la implementacion se conservan para rehabilitar la seccion al restaurar los archivos.
