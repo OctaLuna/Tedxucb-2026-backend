@@ -95,6 +95,16 @@ services:
       timeout: 5s
       retries: 5
 
+  ideathon-web:
+    image: tedx-platform-ideathon:${IMAGE_TAG:-current}
+    restart: unless-stopped
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   avatar-service:
     image: tedx-platform-avatar-service:${IMAGE_TAG:-current}
     restart: unless-stopped

@@ -40,3 +40,10 @@ semana-fcef.sis-ucb.site {
 		reverse_proxy innovation-web:80
 	}
 }
+
+ideathon.sis-ucb.site {
+	encode gzip zstd
+	handle {
+		reverse_proxy ideathon-web:80
+	}
+}

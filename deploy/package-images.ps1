@@ -1,7 +1,7 @@
 param(
     [string]$Tag = (Get-Date -Format 'yyyyMMdd-HHmmss'),
     [string]$WebLandingRoot = (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent),
-    [string]$Components = 'backend,tedx,innovation,avatar-service,avatar-editor',
+    [string]$Components = 'backend,tedx,innovation,avatar-service,avatar-editor,ideathon',
     [string]$BuildCaFile
 )
 
@@ -10,6 +10,7 @@ $backendRoot = Split-Path $PSScriptRoot -Parent
 $tedxRoot = Join-Path $WebLandingRoot 'TedX-UCB\tedx-ucb-landing'
 $innovationRoot = Join-Path $WebLandingRoot 'UcbInnovationWeek\innovation-week-landing'
 $avatarRoot = Join-Path $WebLandingRoot 'UcbInnovationWeek\avatar-2d'
+$ideathonRoot = Join-Path $WebLandingRoot 'IDEATHON'
 $artifacts = Join-Path $PSScriptRoot 'artifacts'
 $buildCaPath = $null
 $temporaryDockerfiles = $null
@@ -21,7 +22,7 @@ if ($BuildCaFile) {
     $temporaryDockerfiles = Join-Path ([IO.Path]::GetTempPath()) "tedx-build-dockerfiles-$([guid]::NewGuid().ToString('N'))"
 }
 
-foreach ($path in @($backendRoot, $tedxRoot, $innovationRoot, $avatarRoot)) {
+foreach ($path in @($backendRoot, $tedxRoot, $innovationRoot, $avatarRoot, $ideathonRoot)) {
     if (-not (Test-Path -LiteralPath $path)) { throw "No existe el repositorio requerido: $path" }
 }
 
@@ -104,7 +105,8 @@ $images = @(
     @{ Component = 'tedx'; Name = 'tedx-platform-tedx'; Context = $tedxRoot; Dockerfile = (Join-Path $tedxRoot 'frontend\Dockerfile'); Args = @('--build-arg', 'NEXT_PUBLIC_API_BASE_URL=/api/v1', '--build-arg', "NEXT_PUBLIC_GOOGLE_CLIENT_ID=$tedxGoogle", '--build-arg', 'NEXT_PUBLIC_AVATAR_2D_EDITOR_URL=') },
     @{ Component = 'innovation'; Name = 'tedx-platform-innovation'; Context = $innovationRoot; Dockerfile = (Join-Path $innovationRoot 'deploy\Dockerfile'); Args = @('--build-arg', 'VITE_API_BASE_URL=/api/v1', '--build-arg', "VITE_GOOGLE_CLIENT_ID=$innovationGoogle", '--build-arg', 'VITE_AVATAR_2D_EDITOR_URL=/avatar/') },
     @{ Component = 'avatar-service'; Name = 'tedx-platform-avatar-service'; Context = $avatarRoot; Dockerfile = (Join-Path $avatarRoot 'Dockerfile.avatar-service'); Args = @() },
-    @{ Component = 'avatar-editor'; Name = 'tedx-platform-avatar-editor'; Context = $avatarRoot; Dockerfile = (Join-Path $avatarRoot 'Dockerfile.avatar-editor'); Args = @('--build-arg', 'VITE_HOST_ORIGINS=https://semana-fcef.sis-ucb.site', '--build-arg', 'VITE_BASE=/avatar/') }
+    @{ Component = 'avatar-editor'; Name = 'tedx-platform-avatar-editor'; Context = $avatarRoot; Dockerfile = (Join-Path $avatarRoot 'Dockerfile.avatar-editor'); Args = @('--build-arg', 'VITE_HOST_ORIGINS=https://semana-fcef.sis-ucb.site', '--build-arg', 'VITE_BASE=/avatar/') },
+    @{ Component = 'ideathon'; Name = 'tedx-platform-ideathon'; Context = $ideathonRoot; Dockerfile = (Join-Path $ideathonRoot 'deploy\Dockerfile'); Args = @() }
 )
 
 $manifest = [System.Collections.Generic.List[string]]::new()
@@ -116,11 +118,33 @@ else {
     $manifest.Add("tedx=$(Get-SourceInfo $tedxRoot)")
     $manifest.Add("innovation=$(Get-SourceInfo $innovationRoot)")
     $manifest.Add("avatar=$(Get-SourceInfo $avatarRoot)")
+    $manifest.Add("ideathon=$(Get-SourceInfo $ideathonRoot)")
 }
 
 $selectedComponents = @($Components -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $selectedImages = @($images | Where-Object { $_.Component -in $selectedComponents })
 if (-not $selectedImages.Count) { throw "No hay componentes reconocidos: $Components" }
+
+if ($selectedComponents -contains 'ideathon') {
+    if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
+        throw 'Bun 1.4 o posterior es necesario para construir los recursos estáticos de IDEATHON antes de crear su imagen Nginx.'
+    }
+
+    $previousNodeUseSystemCa = $env:NODE_USE_SYSTEM_CA
+    try {
+        $env:NODE_USE_SYSTEM_CA = '1'
+        Push-Location $ideathonRoot
+        & bun install --frozen-lockfile --use-system-ca
+        if ($LASTEXITCODE -ne 0) { throw 'Falló la instalación congelada de dependencias IDEATHON.' }
+        & bun run build
+        if ($LASTEXITCODE -ne 0) { throw 'Falló la compilación de recursos estáticos IDEATHON.' }
+    }
+    finally {
+        Pop-Location
+        if ($null -eq $previousNodeUseSystemCa) { Remove-Item Env:NODE_USE_SYSTEM_CA -ErrorAction SilentlyContinue }
+        else { $env:NODE_USE_SYSTEM_CA = $previousNodeUseSystemCa }
+    }
+}
 
 if ($temporaryDockerfiles) { New-Item -ItemType Directory -Path $temporaryDockerfiles | Out-Null }
 try {
