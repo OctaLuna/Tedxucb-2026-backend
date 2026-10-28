@@ -69,7 +69,7 @@ services:
       start_period: 30s
 
   tedx-web:
-    image: tedx-platform-tedx:${IMAGE_TAG:-current}
+    image: tedx-platform-tedx:${TEDX_IMAGE_TAG:-${IMAGE_TAG:-current}}
     restart: unless-stopped
     depends_on:
       backend:
