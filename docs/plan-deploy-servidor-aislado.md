@@ -77,7 +77,7 @@ Inyectar secretos desde el mecanismo del servidor, fuera del repo, con permisos 
 
 Backend: `NODE_ENV=production`, `PORT`, `DATABASE_URL`, `DIRECT_URL`, `REDIS_URL`, `JWT_SECRET`, `QR_TOKEN_SECRET`, `AVATAR_BRIDGE_SECRET`, `ADMIN_EMAILS`, `GOOGLE_CLIENT_ID`, `CORS_ORIGIN`, URLs públicas de ambos frontends, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` y `MAIL_FROM`. Los tres secretos criptográficos deben ser independientes y cumplir el mínimo validado por la aplicación.
 
-Frontends: `VITE_API_BASE_URL`, `VITE_GOOGLE_CLIENT_ID`, `VITE_AVATAR_2D_EDITOR_URL` en Innovation Week; `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID` y `NEXT_PUBLIC_AVATAR_2D_EDITOR_URL` en TEDx. Son valores públicos de cliente; no incluir secretos privados ni credenciales del backend en Vite/Next.
+Frontends: `VITE_API_BASE_URL`, `VITE_GOOGLE_CLIENT_ID` y `VITE_AVATAR_2D_EDITOR_URL` en Innovation Week; `NEXT_PUBLIC_API_BASE_URL` y `NEXT_PUBLIC_GOOGLE_CLIENT_ID` en TEDx. Son valores públicos de cliente; no incluir secretos privados ni credenciales del backend en Vite/Next.
 
 Avatar 2D: `DATABASE_PATH` bajo el volumen SQLite dedicado, `AVATAR_BRIDGE_SECRET` igual al secreto compartido configurado en backend, `EDITOR_ORIGIN` y `PARENT_ORIGINS` con los orígenes HTTPS exactos del editor y ambos frontends. El build del editor recibe `VITE_HOST_ORIGINS` con los dos orígenes padre. Revisar que el secreto no aparezca en logs, query strings ni navegador.
 
