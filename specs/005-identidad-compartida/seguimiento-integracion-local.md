@@ -112,3 +112,14 @@ Esta nota complementa el SDD de identidad compartida. No declara completa la int
 - Se implemento paginacion por correo unico en backend y busqueda parcial case-insensitive; el historial permite ver permisos activos, revocados o todos. El panel presenta busqueda, estado, contador y navegacion, agrupando por email.
 - Para convivir con el proceso local anterior mientras el backend no se reinicia, Innovation Week detecta respuestas sin `meta` y pagina/filtra en el cliente. Al recibir el formato nuevo, usa la paginacion del servidor. Este camino legado tiene prueba propia.
 - Contrato admin-event-access: 9/9; build backend aprobado. `npm run verify` de Innovation Week: typecheck, lint, 15/15 archivos y 49/49 pruebas, aislamiento y build aprobados. El lint emite dos avisos del parser JSX de `jsx-ast-utils` sin errores ni warnings por el componente actualizado.
+
+## Revalidacion integrada local (27 de octubre de 2026)
+
+- La base `ted_backend_local` estaba al dia con 29 migraciones en `127.0.0.1:55432`. Se usaron PostgreSQL, Redis y Mailpit del `docker-compose.test.yml`; ninguna URL ni comando apuntó a Supabase productivo.
+- Regresion backend: `npm run test:local -- --maxWorkers=1 --testTimeout=120000` — 72 suites y 422 pruebas aprobadas. Duracion: 1541.5 s.
+- Innovation Week: 53/53 pruebas, typecheck, lint (exit 0; dos avisos del parser `jsx-ast-utils`), aislamiento y build de produccion aprobados.
+- TEDx: 13/13 pruebas, typecheck, lint (exit 0; dos avisos preexistentes de `<img>`) y build de produccion aprobados. El servidor standalone local devolvio HTTP 200 para `/`.
+- Avatar 2D: `npm run verify` aprobó typecheck, lint, 23/23 pruebas y build. El backend y Avatar comparten el secreto puente local; los origenes de ambos frontends estan permitidos. Avatar API `/ready` y editor respondieron HTTP 200.
+- Smoke HTTP: backend health 200; challenge Google 200 y preflight 204 desde `localhost:5173` y `localhost:3000`; un origen externo no recibió `Access-Control-Allow-Origin`. Innovation Week `/registrarse`, TEDx `/` y ambos endpoints públicos de programa respondieron 200. El programa muestra 26 elementos de Innovation Week y ninguno de TEDx, sin cruzar datos entre eventos.
+- Ambos frontends usan el mismo Google Client ID configurado en el backend y llaman al API local `http://localhost:3100/api/v1`. Una búsqueda en código y manifests de ambos frontends no encontró Firebase.
+- Pendiente de intervención humana: completar el callback de Google con una cuenta real. El challenge, la validación criptográfica con fixtures y el contrato funcionan, pero no se ingresaron credenciales. La configuración SMTP local apunta a Mailpit; no se realizó entrega a un buzón externo. Los orígenes OAuth HTTPS quedan para después de DNS/TLS. La sesión local no modificó Supabase productivo.
