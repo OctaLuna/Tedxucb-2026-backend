@@ -102,7 +102,7 @@ if (-not $innovationGoogle -or -not $tedxGoogle -or $innovationGoogle -ne $tedxG
 New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
 $images = @(
     @{ Component = 'backend'; Name = 'tedx-platform-backend'; Context = $backendRoot; Dockerfile = (Join-Path $backendRoot 'Dockerfile'); Args = @() },
-    @{ Component = 'tedx'; Name = 'tedx-platform-tedx'; Context = $tedxRoot; Dockerfile = (Join-Path $tedxRoot 'frontend\Dockerfile'); Args = @('--build-arg', 'NEXT_PUBLIC_API_BASE_URL=/api/v1', '--build-arg', "NEXT_PUBLIC_GOOGLE_CLIENT_ID=$tedxGoogle", '--build-arg', 'NEXT_PUBLIC_AVATAR_2D_EDITOR_URL=') },
+    @{ Component = 'tedx'; Name = 'tedx-platform-tedx'; Context = $tedxRoot; Dockerfile = (Join-Path $tedxRoot 'frontend\Dockerfile'); Args = @('--build-arg', 'NEXT_PUBLIC_API_BASE_URL=/api/v1', '--build-arg', "NEXT_PUBLIC_GOOGLE_CLIENT_ID=$tedxGoogle") },
     @{ Component = 'innovation'; Name = 'tedx-platform-innovation'; Context = $innovationRoot; Dockerfile = (Join-Path $innovationRoot 'deploy\Dockerfile'); Args = @('--build-arg', 'VITE_API_BASE_URL=/api/v1', '--build-arg', "VITE_GOOGLE_CLIENT_ID=$innovationGoogle", '--build-arg', 'VITE_AVATAR_2D_EDITOR_URL=/avatar/') },
     @{ Component = 'avatar-service'; Name = 'tedx-platform-avatar-service'; Context = $avatarRoot; Dockerfile = (Join-Path $avatarRoot 'Dockerfile.avatar-service'); Args = @() },
     @{ Component = 'avatar-editor'; Name = 'tedx-platform-avatar-editor'; Context = $avatarRoot; Dockerfile = (Join-Path $avatarRoot 'Dockerfile.avatar-editor'); Args = @('--build-arg', 'VITE_HOST_ORIGINS=https://semana-fcef.sis-ucb.site', '--build-arg', 'VITE_BASE=/avatar/') },
