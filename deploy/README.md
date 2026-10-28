@@ -40,6 +40,10 @@ configurar `IMAGE_TAG` con el tag empaquetado y confirmar que la red externa
 `tedx-facultyweek-edge` ya está conectada al Caddy existente. Aplicar las
 migraciones con el servicio `migrate` y luego levantar el stack:
 
+Para actualizar TEDx de forma independiente, definir `TEDX_IMAGE_TAG` en el
+`.env` del servidor. Su valor solo aplica a `tedx-web`; los demás servicios
+siguen usando `IMAGE_TAG`.
+
 ```sh
 docker compose --env-file .env -f compose.yaml up -d
 ```
