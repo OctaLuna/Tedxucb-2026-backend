@@ -1,6 +1,6 @@
 # Plan de despliegue aislado: TEDxUCB + Innovation Week
 
-> **Nota de vigencia (2026-10-29):** este documento registra la captura del host y el release `release-20261026-v2` del 26 de octubre. El checklist posterior registra `release-20261027-v3`, pero en esta sesión SSH respondió `Permission denied (publickey,password)`, por lo que no se confirmó qué tag, Compose, Caddyfile o fecha de base están activos hoy. No usar esta captura como evidencia del estado actual del servidor.
+> **Nota de vigencia (2026-10-29):** este documento y el inventario enlazado conservan la captura del 26 de octubre. En una revalidación de solo lectura con la clave SSH dedicada se confirmó que backend, Innovation, IDEATHON y Avatar siguen en `release-20261026-v2`, TEDx en `release-20261027-v3`, Compose coincide con la fuente, Caddy valida y las 29 migraciones están al día. No usar el inventario del 26 como estado actual de contenedores.
 
 Estado: piloto aislado actualizado a `release-20261026-v2` el 2026-10-26. Las cinco imágenes se verificaron por SHA-256 antes de cargarlas; la base se respaldó y restauró en una instancia temporal aislada antes de aplicar las dos migraciones faltantes. Las 29 migraciones están al día y los servicios pasaron sus healthchecks internos. El inventario inicial está en [`inventario-servidor-2026-10-26.md`](inventario-servidor-2026-10-26.md). Los dominios están en Caddy pero todavía no resuelven por DNS; el acceso público/TLS y login desde esos orígenes siguen sin comprobarse. La entrega SMTP externa continúa aplazada como indicó el operador.
 

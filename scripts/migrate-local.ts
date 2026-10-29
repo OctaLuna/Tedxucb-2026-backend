@@ -3,7 +3,7 @@ import { Client } from 'pg';
 import { resolve } from 'node:path';
 
 const TEDX_SCOPE_MIGRATION = '20261023060000_scope_speakers_to_event';
-const TEDX_STARTS_AT = '2026-11-09T14:00:00-04:00';
+const TEDX_STARTS_AT = '2026-11-12T14:15:00-04:00';
 
 function localDatabaseUrl(): URL {
   const configured = process.env.DIRECT_URL ??

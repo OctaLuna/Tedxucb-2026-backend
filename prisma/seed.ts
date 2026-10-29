@@ -94,11 +94,9 @@ async function seedPlaceholderConsentVersion(): Promise<void> {
 }
 
 /**
- * Evento real (a diferencia del consentimiento, no es un placeholder): la
- * fecha del TEDxUCB es conocida -- 9 de noviembre. Hora exacta y sede son
- * verosímiles pero PENDIENTES DE CONFIRMAR (ver data-model.md §6 de
- * 002-sitio-publico) -- el propio mecanismo de PATCH /events/:id existe
- * para corregirlas sin desplegar código en cuanto se confirmen. Sin esta
+ * Evento real (a diferencia del consentimiento, no es un placeholder): el
+ * cronograma confirma TEDxUCB el 12 de noviembre a las 14:15. La sede queda
+ * pendiente de confirmar (ver data-model.md §6 de 002-sitio-publico). Sin esta
  * fila PUBLISHED, GET /public/event responde 404 EVENT_NOT_CONFIGURED.
  */
 async function seedEvent(): Promise<void> {
@@ -117,9 +115,7 @@ async function seedEvent(): Promise<void> {
       slug: 'tedxucb',
       name: 'TEDxUCB',
       tagline: null,
-      // 10:00 hora La Paz -- PLACEHOLDER, hora exacta pendiente de
-      // confirmar con el responsable del evento.
-      startsAt: new Date('2026-11-09T14:00:00-04:00'),
+      startsAt: new Date('2026-11-12T14:15:00-04:00'),
       venue: null, // sede pendiente de confirmar
       status: 'PUBLISHED',
     },

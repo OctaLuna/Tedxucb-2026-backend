@@ -144,5 +144,11 @@ Esta nota complementa el SDD de identidad compartida. No declara completa la int
 
 ## Corrección de fechas del evento (29 de octubre de 2026)
 
-- El cronograma confirmado ubica la Semana de la Facultad del 9 al 13 de noviembre y TEDxUCB el jueves 12. La migración de alineación de fecha ya corrige filas previas de Innovation Week a noviembre, pero la configuración de la SPA y el `prisma seed` todavía conservaban el 7 de septiembre; se actualizó el seed para que una base nueva use el 9 de noviembre.
-- El seed no actualiza eventos existentes, por diseño. La fecha efectiva del servidor requiere consultar su base después de recuperar SSH; esta sesión no la cambió.
+- El cronograma confirmado ubica la Semana de la Facultad del 9 al 13 de noviembre y TEDxUCB el jueves 12 a las 14:15. Innovation Week tenía fecha de septiembre en la SPA y seed; TEDx estaba en noviembre 9 a las 14:00 en el backend, aunque su frontend y cronograma lo ubican el 12. Se corrigieron los seeds y se añadió una migración condicional para mover solo el timestamp TEDx original; las fechas que un operador haya cambiado no se sobrescriben.
+- La inspección SSH de solo lectura confirmó que la base del host tenía TEDx el 9 de noviembre a las 14:00 y Semana de la Facultad el 9 a las 09:00. La migración corregirá TEDx a 12 de noviembre 14:15 al próximo despliegue; no se aplicó en este turno.
+
+## Revalidación del servidor y deriva de release (29 de octubre de 2026)
+
+- Se encontró y seleccionó la clave privada dedicada de despliegue; SSH conectó en modo de solo lectura. Compose remoto y fuente tienen contenido idéntico; `docker compose config -q` aprobó, Caddy validó las rutas TEDx/Innovation/IDEATHON conservando Porerekua, y las 29 migraciones actuales estaban al día.
+- Backend, Innovation Week, IDEATHON y Avatar API estaban en `release-20261026-v2`; TEDx en `release-20261027-v3`. Los servicios consultados estaban saludables. No se modificó ni reinició contenedor alguno.
+- El manifiesto local `release-20261027-v3` no es un paquete completo; solo registra la imagen TEDx y sus fuentes incluyen revisiones anteriores marcadas como untracked. El empaquetador se endureció para vincular cada tag a commits/hash de fuentes y no sobrescribir imágenes existentes.
