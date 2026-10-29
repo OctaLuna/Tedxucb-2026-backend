@@ -44,6 +44,15 @@ jobs:
       DIRECT_URL: postgresql://ted_test:local_test_only@127.0.0.1:55432/ted_integration_test?schema=public
       REDIS_URL: redis://127.0.0.1:56379
       NODE_ENV: test
+      JWT_SECRET: ci-only-jwt-secret-not-for-deployment-20261029
+      QR_TOKEN_SECRET: ci-only-qr-secret-not-for-deployment-20261029
+      AVATAR_BRIDGE_SECRET: ci-only-avatar-secret-not-for-deployment-20261029
+      GOOGLE_CLIENT_ID: backend-test-client.apps.googleusercontent.com
+      CORS_ORIGIN: http://localhost:3000,http://localhost:5173
+      PUBLIC_FRONTEND_URL_TEDX: http://localhost:3000
+      PUBLIC_FRONTEND_URL_INNOVATION_WEEK: http://localhost:5173
+      SMTP_HOST: localhost
+      SMTP_PORT: 1025
 
     steps:
       - name: Checkout
@@ -66,6 +75,9 @@ jobs:
 
       - name: Run backend unit and contract suites
         run: npm run test:local -- --maxWorkers=1 --testTimeout=120000
+
+      - name: Create isolated migration-fixture database
+        run: docker compose -f docker-compose.test.yml exec -T postgres-test createdb -U ted_test ted_backend_local
 
       - name: Verify event-scope migrations with sanitized fixtures
         run: npm run test:migrations:local
