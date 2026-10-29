@@ -31,7 +31,7 @@ services:
       retries: 20
 
   migrate:
-    image: tedx-platform-backend:${IMAGE_TAG:-current}
+    image: tedx-platform-backend:${BACKEND_IMAGE_TAG:-${IMAGE_TAG:-current}}
     restart: "no"
     env_file: .env
     environment:
@@ -44,7 +44,7 @@ services:
     networks: [private]
 
   backend:
-    image: tedx-platform-backend:${IMAGE_TAG:-current}
+    image: tedx-platform-backend:${BACKEND_IMAGE_TAG:-${IMAGE_TAG:-current}}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -83,7 +83,7 @@ services:
       start_period: 30s
 
   innovation-web:
-    image: tedx-platform-innovation:${IMAGE_TAG:-current}
+    image: tedx-platform-innovation:${INNOVATION_IMAGE_TAG:-${IMAGE_TAG:-current}}
     restart: unless-stopped
     depends_on:
       backend:
