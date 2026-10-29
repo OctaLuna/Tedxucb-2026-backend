@@ -23,9 +23,8 @@ async function ensureEvent(slug: string, name: string, startsAt: string): Promis
 }
 
 async function main(): Promise<void> {
-  await ensureEvent('tedxucb', 'TEDxUCB', '2026-11-09T14:00:00-04:00');
-  // La fecha procede de frontend/src/config/event.ts y debe revisarse al desplegar.
-  await ensureEvent('innovation-week', 'Semana de la Facultad', '2026-09-07T09:00:00-04:00');
+  await ensureEvent('tedxucb', 'TEDxUCB', '2026-11-12T14:15:00-04:00');
+  await ensureEvent('innovation-week', 'Semana de la Facultad', '2026-11-09T09:00:00-04:00');
 }
 
 main().finally(() => prisma.$disconnect()).catch((error: unknown) => {

@@ -38,11 +38,30 @@ function Read-DotEnv([string]$path) {
 
 function Get-SourceInfo([string]$path) {
     $revision = (& git -C $path rev-parse --short HEAD 2>$null)
-    if ($LASTEXITCODE -ne 0) { $revision = 'no-git' }
+    if ($LASTEXITCODE -ne 0) { throw "No se pudo identificar la revisión Git de $path." }
     $trackedChanges = (& git -C $path status --porcelain --untracked-files=no 2>$null)
     if ($trackedChanges) { throw "Hay cambios trackeados sin commit en $path; empaqueta desde una revisión confirmada." }
     $untracked = (& git -C $path ls-files --others --exclude-standard 2>$null)
-    return "$revision$(if ($untracked) { '-untracked' })"
+    if (-not $untracked) { return $revision }
+
+    # El manifiesto identifica también cualquier archivo local sin seguimiento
+    # que pueda entrar al contexto Docker; una marca genérica no detectaría
+    # cambios en su contenido entre ejecuciones del mismo tag.
+    $untrackedEntries = foreach ($relativePath in ($untracked | Sort-Object)) {
+        $filePath = Join-Path $path $relativePath
+        if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) {
+            throw "No se pudo verificar el archivo local sin seguimiento: $filePath"
+        }
+        $fileHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $filePath).Hash.ToLowerInvariant()
+        "$relativePath sha256=$fileHash"
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $base64Hash = [Convert]::ToBase64String($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(($untrackedEntries -join "`n"))))
+        $untrackedHash = $base64Hash.TrimEnd('=').Replace('+', '-').Replace('/', '_')
+    }
+    finally { $sha.Dispose() }
+    return "${revision}-untracked-${untrackedHash}"
 }
 
 function Get-BuildDockerfile($item) {
@@ -111,14 +130,25 @@ $images = @(
 
 $manifest = [System.Collections.Generic.List[string]]::new()
 $manifestPath = Join-Path $artifacts "manifest-$Tag.txt"
-if (Test-Path -LiteralPath $manifestPath) { $manifest.AddRange([string[]](Get-Content -LiteralPath $manifestPath)) }
+$sourceRevisions = [ordered]@{
+    backend = Get-SourceInfo $backendRoot
+    tedx = Get-SourceInfo $tedxRoot
+    innovation = Get-SourceInfo $innovationRoot
+    avatar = Get-SourceInfo $avatarRoot
+    ideathon = Get-SourceInfo $ideathonRoot
+}
+if (Test-Path -LiteralPath $manifestPath) {
+    $manifest.AddRange([string[]](Get-Content -LiteralPath $manifestPath))
+    if ($manifest -notcontains "tag=$Tag") { throw "El manifiesto existente no corresponde al tag $Tag; usa un tag nuevo." }
+    foreach ($component in $sourceRevisions.Keys) {
+        if ($manifest -notcontains "$component=$($sourceRevisions[$component])") {
+            throw "El tag $Tag ya está asociado a otra revisión de $component; usa un tag nuevo para conservar trazabilidad."
+        }
+    }
+}
 else {
     $manifest.Add("tag=$Tag")
-    $manifest.Add("backend=$(Get-SourceInfo $backendRoot)")
-    $manifest.Add("tedx=$(Get-SourceInfo $tedxRoot)")
-    $manifest.Add("innovation=$(Get-SourceInfo $innovationRoot)")
-    $manifest.Add("avatar=$(Get-SourceInfo $avatarRoot)")
-    $manifest.Add("ideathon=$(Get-SourceInfo $ideathonRoot)")
+    foreach ($component in $sourceRevisions.Keys) { $manifest.Add("$component=$($sourceRevisions[$component])") }
 }
 
 $selectedComponents = @($Components -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
@@ -150,6 +180,11 @@ if ($temporaryDockerfiles) { New-Item -ItemType Directory -Path $temporaryDocker
 try {
     foreach ($item in $selectedImages) {
         $image = "$($item.Name):$Tag"
+        $archive = Join-Path $artifacts "$($item.Name)-$Tag.tar"
+        $existingImageRecord = @($manifest | Where-Object { $_.StartsWith("$image sha256=", [StringComparison]::Ordinal) })
+        if ((Test-Path -LiteralPath $archive) -or $existingImageRecord.Count -gt 0) {
+            throw "El artefacto $image ya existe y es inmutable; usa un tag nuevo para reconstruirlo."
+        }
         Write-Host "Building $image"
         $dockerfile = Get-BuildDockerfile $item
         $buildArgs = @('buildx', 'build', '--platform', 'linux/amd64', '--load', '--file', $dockerfile, '--tag', $image) + $item.Args
@@ -158,11 +193,9 @@ try {
         & docker @buildArgs
         if ($LASTEXITCODE -ne 0) { throw "Falló la construcción de $image" }
 
-        $archive = Join-Path $artifacts "$($item.Name)-$Tag.tar"
         & docker save --output $archive $image
         if ($LASTEXITCODE -ne 0) { throw "Falló la exportación de $image" }
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
-        $manifest = [System.Collections.Generic.List[string]]::new([string[]](@($manifest | Where-Object { $_ -notmatch "^$([regex]::Escape($image)) sha256=" })))
         $manifest.Add("$image sha256=$hash bytes=$((Get-Item -LiteralPath $archive).Length)")
         $manifest | Set-Content -LiteralPath $manifestPath -Encoding ascii
     }

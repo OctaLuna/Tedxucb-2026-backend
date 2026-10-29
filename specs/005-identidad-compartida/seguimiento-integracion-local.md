@@ -135,3 +135,20 @@ Esta nota complementa el SDD de identidad compartida. No declara completa la int
 - Quedan abiertos el callback Google interactivo con cuenta de prueba, el conjunto contractual del backend sobre la base aislada, la entrega SMTP externa y los gates de release ya documentados. Esta revalidación no equivale al cierre de T071/T072.
 - La revisión de despliegue detectó que el README apuntaba a `deploy/.env.example`, excluido por `.gitignore`. Se añadió `deploy/server.env.example` con placeholders seguros y se actualizó el runbook; Git confirma que la plantilla nueva sí queda versionable. La plantilla real con secretos sigue fuera del repositorio.
 - `docker compose --env-file deploy/server.env.example -f deploy/compose.yaml config -q` aprobó la sintaxis e interpolación estática del stack sin contactar al daemon ni iniciar o alterar contenedores.
+
+## Verificación aislada en CI (29 de octubre de 2026)
+
+- Docker Desktop no estaba disponible en el equipo local; para obtener evidencia funcional se ejecutó el workflow de `main` en GitHub Actions con PostgreSQL, Redis y Mailpit desechables. No se usó `localhost:5432`, Supabase ni la base del servidor.
+- En `fdf6d17`, `72/72` suites y `422/422` pruebas pasaron. El fixture sanitizado aplicó las 29 migraciones; preservó la copia baseline y el hash del ledger, mantuvo las filas ambiguas legacy sin cambios, validó las constraints entre eventos y terminó con cero huérfanos.
+- Evidencia: https://github.com/OctaLuna/Tedxucb-2026-backend/actions/runs/40923304212. Esta corrida corrige la nota anterior sobre contratos no repetidos por falta de Docker local; no sustituye el inicio interactivo con Google ni la verificación del servidor.
+
+## Corrección de fechas del evento (29 de octubre de 2026)
+
+- El cronograma confirmado ubica la Semana de la Facultad del 9 al 13 de noviembre y TEDxUCB el jueves 12 a las 14:15. Innovation Week tenía fecha de septiembre en la SPA y seed; TEDx estaba en noviembre 9 a las 14:00 en el backend, aunque su frontend y cronograma lo ubican el 12. Se corrigieron los seeds y se añadió una migración condicional para mover solo el timestamp TEDx original; las fechas que un operador haya cambiado no se sobrescriben.
+- La inspección SSH de solo lectura confirmó que la base del host tenía TEDx el 9 de noviembre a las 14:00 y Semana de la Facultad el 9 a las 09:00. La migración corregirá TEDx a 12 de noviembre 14:15 al próximo despliegue; no se aplicó en este turno.
+
+## Revalidación del servidor y deriva de release (29 de octubre de 2026)
+
+- Se encontró y seleccionó la clave privada dedicada de despliegue; SSH conectó en modo de solo lectura. Compose remoto y fuente tienen contenido idéntico; `docker compose config -q` aprobó, Caddy validó las rutas TEDx/Innovation/IDEATHON conservando Porerekua, y las 29 migraciones actuales estaban al día.
+- Backend, Innovation Week, IDEATHON y Avatar API estaban en `release-20261026-v2`; TEDx en `release-20261027-v3`. Los servicios consultados estaban saludables. No se modificó ni reinició contenedor alguno.
+- El manifiesto local `release-20261027-v3` no es un paquete completo; solo registra la imagen TEDx y sus fuentes incluyen revisiones anteriores marcadas como untracked. El empaquetador se endureció para vincular cada tag a commits/hash de fuentes y no sobrescribir imágenes existentes.

@@ -1,3 +1,5 @@
+# Entorno local/de pruebas únicamente. No usar en el servidor: publica puertos
+# de PostgreSQL/Redis y emplea credenciales deliberadamente no aptas para producción.
 services:
   postgres:
     image: postgres:16-alpine

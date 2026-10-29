@@ -1,7 +1,8 @@
-# Operación — día del evento
+# Operación — Semana de la Facultad y TEDxUCB
 
-Guía para el 9 de noviembre y los días previos. Se ejecuta una sola vez, delante
-de todo el mundo.
+Guía para la semana del 9 al 13 de noviembre de 2026. El cronograma compartido
+ubica la actividad central TEDxUCB el jueves 12. Se ejecuta una sola vez,
+delante de todo el mundo.
 
 ## Una semana antes
 

@@ -96,7 +96,7 @@ async function copyMigrationRange(source, target, predicate) {
 async function createFixture(client, ids) {
   await client.query('BEGIN');
   try {
-    await client.query("INSERT INTO events(id,name,starts_at,status,slug,capacity) VALUES($1,'TEDxUCB','2026-11-09T14:00:00Z','PUBLISHED',NULL,100)", [ids.event]);
+    await client.query("INSERT INTO events(id,name,starts_at,status,slug,capacity) VALUES($1,'TEDxUCB','2026-11-09T18:00:00Z','PUBLISHED',NULL,100)", [ids.event]);
     await client.query("INSERT INTO users(id,email,password_hash,full_name,status,registration_source) VALUES($1,'admin.fixture@example.test','fixture-hash','Fixture Admin','ACTIVE','ADMIN_CREATED'),($2,'student.fixture@example.test','fixture-hash','Fixture Student','ACTIVE','ADMIN_CREATED')", [ids.admin, ids.student]);
     await client.query("INSERT INTO faculties(id,name) VALUES($1,'Migration Fixture Faculty')", [ids.faculty]);
     await client.query("INSERT INTO careers(id,faculty_id,name) VALUES($1,$2,'Migration Fixture Career')", [ids.career, ids.faculty]);
@@ -155,7 +155,7 @@ async function expectRejected(client, sql, params, expected) {
 }
 
 async function verifyFixture(client, ids, snapshot) {
-  const result = await client.query(`SELECT e.slug,
+  const result = await client.query(`SELECT e.slug, e.starts_at,
     (SELECT count(*) FROM content_blocks WHERE id=$2 AND event_id=$1) AS content,
     (SELECT count(*) FROM speakers WHERE id=$3 AND event_id=$1) AS speakers,
     (SELECT count(*) FROM speaker_applications WHERE id=$4 AND event_id=$1) AS applications,
@@ -167,6 +167,8 @@ async function verifyFixture(client, ids, snapshot) {
     FROM events e WHERE e.id=$1`, [ids.event, ids.content, ids.speaker, ids.application, ids.category, ids.activity, ids.selection, ids.student]);
   if (result.rowCount !== 1 || result.rows[0].slug !== 'tedxucb') throw new Error('TEDx slug backfill did not preserve the legacy event.');
   const row = result.rows[0];
+  const tedxStartsAt = new Date(row.starts_at).toISOString();
+  if (tedxStartsAt !== '2026-11-12T18:15:00.000Z') throw new Error('TEDx event start does not match the confirmed November 12, 14:15 Bolivia schedule.');
   for (const field of ['content', 'speakers', 'applications', 'categories', 'activities', 'selections']) {
     if (Number(row[field]) !== 1) throw new Error(`Legacy ${field} row was not assigned to TEDx.`);
   }
@@ -198,7 +200,7 @@ async function verifyFixture(client, ids, snapshot) {
     (SELECT count(*) FROM activities WHERE event_id IS NULL) +
     (SELECT count(*) FROM selections WHERE event_id IS NULL) AS scoped_orphans`);
   if (Number(orphanCheck.rows[0].scoped_orphans) !== 0) throw new Error('Scoped legacy data contains orphan rows.');
-  return { events: 2, legacyRowsBackfilled: 7, ledgerRows: ledger.rows.length, ledgerHashUnchanged: true, crossEventConstraints: 'passed', scopedOrphans: 0, projectedPoints: Number(row.projected_points) };
+  return { events: 2, tedxStartsAt, legacyRowsBackfilled: 7, ledgerRows: ledger.rows.length, ledgerHashUnchanged: true, crossEventConstraints: 'passed', scopedOrphans: 0, projectedPoints: Number(row.projected_points) };
 }
 
 async function main() {

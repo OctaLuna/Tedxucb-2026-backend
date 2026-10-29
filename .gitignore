@@ -15,6 +15,8 @@ playwright-report/
 test-results/
 blob-report/
 uploads/
+.prisma-migration-fixture-*.tmp.config.ts
+deploy/artifacts/
 
 .vercel
 .env*
