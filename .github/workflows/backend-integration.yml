@@ -76,6 +76,9 @@ jobs:
       - name: Run backend unit and contract suites
         run: npm run test:local -- --maxWorkers=1 --testTimeout=120000
 
+      - name: Create isolated migration-fixture database
+        run: docker compose -f docker-compose.test.yml exec -T postgres-test createdb -U ted_test ted_backend_local
+
       - name: Verify event-scope migrations with sanitized fixtures
         run: npm run test:migrations:local
 
