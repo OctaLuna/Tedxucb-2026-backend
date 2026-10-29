@@ -126,7 +126,7 @@ async function seedEvent(): Promise<void> {
   });
 }
 
-/** Metadata pública existente en innovation-week-landing/src/config/event.ts. */
+/** Semana del evento confirmada para el 9–13 de noviembre de 2026. */
 async function seedInnovationWeekEvent(): Promise<void> {
   const existing = await prisma.event.findUnique({ where: { slug: 'innovation-week' } });
   if (existing) return;
@@ -134,7 +134,7 @@ async function seedInnovationWeekEvent(): Promise<void> {
     data: {
       slug: 'innovation-week',
       name: 'Semana de la Facultad',
-      startsAt: new Date('2026-09-07T09:00:00-04:00'),
+      startsAt: new Date('2026-11-09T09:00:00-04:00'),
       venue: 'Universidad Católica Boliviana',
       status: 'PUBLISHED',
     },

@@ -5,7 +5,7 @@
 | [`arquitectura.md`](arquitectura.md) | Visión técnica del sistema y sus piezas |
 | [`glosario.md`](glosario.md) | Términos del dominio, con el significado que tienen aquí |
 | [`onboarding.md`](onboarding.md) | Cómo incorporarse al proyecto |
-| [`operacion-dia-del-evento.md`](operacion-dia-del-evento.md) | Guía operativa para el 9 de noviembre |
+| [`operacion-dia-del-evento.md`](operacion-dia-del-evento.md) | Guía operativa para la semana del 9 al 13 de noviembre de 2026 |
 | [`analisis-sdd.md`](analisis-sdd.md) | Auditoría de consistencia del proyecto |
 | [`decisiones/`](decisiones/) | ADR: una decisión estructural por archivo |
 | [`legacy/`](legacy/) | Documento previo a SDD, conservado como referencia |

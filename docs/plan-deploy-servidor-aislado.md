@@ -1,5 +1,7 @@
 # Plan de despliegue aislado: TEDxUCB + Innovation Week
 
+> **Nota de vigencia (2026-10-29):** este documento registra la captura del host y el release `release-20261026-v2` del 26 de octubre. El checklist posterior registra `release-20261027-v3`, pero en esta sesión SSH respondió `Permission denied (publickey,password)`, por lo que no se confirmó qué tag, Compose, Caddyfile o fecha de base están activos hoy. No usar esta captura como evidencia del estado actual del servidor.
+
 Estado: piloto aislado actualizado a `release-20261026-v2` el 2026-10-26. Las cinco imágenes se verificaron por SHA-256 antes de cargarlas; la base se respaldó y restauró en una instancia temporal aislada antes de aplicar las dos migraciones faltantes. Las 29 migraciones están al día y los servicios pasaron sus healthchecks internos. El inventario inicial está en [`inventario-servidor-2026-10-26.md`](inventario-servidor-2026-10-26.md). Los dominios están en Caddy pero todavía no resuelven por DNS; el acceso público/TLS y login desde esos orígenes siguen sin comprobarse. La entrega SMTP externa continúa aplazada como indicó el operador.
 
 ## 1. Objetivo y límites

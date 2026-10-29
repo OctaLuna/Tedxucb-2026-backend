@@ -135,3 +135,14 @@ Esta nota complementa el SDD de identidad compartida. No declara completa la int
 - Quedan abiertos el callback Google interactivo con cuenta de prueba, el conjunto contractual del backend sobre la base aislada, la entrega SMTP externa y los gates de release ya documentados. Esta revalidación no equivale al cierre de T071/T072.
 - La revisión de despliegue detectó que el README apuntaba a `deploy/.env.example`, excluido por `.gitignore`. Se añadió `deploy/server.env.example` con placeholders seguros y se actualizó el runbook; Git confirma que la plantilla nueva sí queda versionable. La plantilla real con secretos sigue fuera del repositorio.
 - `docker compose --env-file deploy/server.env.example -f deploy/compose.yaml config -q` aprobó la sintaxis e interpolación estática del stack sin contactar al daemon ni iniciar o alterar contenedores.
+
+## Verificación aislada en CI (29 de octubre de 2026)
+
+- Docker Desktop no estaba disponible en el equipo local; para obtener evidencia funcional se ejecutó el workflow de `main` en GitHub Actions con PostgreSQL, Redis y Mailpit desechables. No se usó `localhost:5432`, Supabase ni la base del servidor.
+- En `fdf6d17`, `72/72` suites y `422/422` pruebas pasaron. El fixture sanitizado aplicó las 29 migraciones; preservó la copia baseline y el hash del ledger, mantuvo las filas ambiguas legacy sin cambios, validó las constraints entre eventos y terminó con cero huérfanos.
+- Evidencia: https://github.com/OctaLuna/Tedxucb-2026-backend/actions/runs/40923304212. Esta corrida corrige la nota anterior sobre contratos no repetidos por falta de Docker local; no sustituye el inicio interactivo con Google ni la verificación del servidor.
+
+## Corrección de fechas del evento (29 de octubre de 2026)
+
+- El cronograma confirmado ubica la Semana de la Facultad del 9 al 13 de noviembre y TEDxUCB el jueves 12. La migración de alineación de fecha ya corrige filas previas de Innovation Week a noviembre, pero la configuración de la SPA y el `prisma seed` todavía conservaban el 7 de septiembre; se actualizó el seed para que una base nueva use el 9 de noviembre.
+- El seed no actualiza eventos existentes, por diseño. La fecha efectiva del servidor requiere consultar su base después de recuperar SSH; esta sesión no la cambió.

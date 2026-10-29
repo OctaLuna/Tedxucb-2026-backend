@@ -23,7 +23,10 @@ tamaño y SHA-256. Rechaza cambios trackeados sin commit y marca si una fuente
 contiene archivos no trackeados. Verificar el manifiesto antes de transferir
 los archivos.
 El `GOOGLE_CLIENT_ID` público de ambos frontends debe existir y coincidir;
-ningún secreto de servidor se incorpora a las imágenes.
+ningún secreto de servidor se incorpora a las imágenes. El manifiesto registra
+el commit y el hash de los archivos locales sin seguimiento que puedan entrar
+al contexto. Un tag existente queda ligado a esas fuentes: no se puede
+reutilizar para otra revisión ni sobrescribir una imagen; crea un tag nuevo.
 
 Si la red de build inspecciona TLS con una CA privada confiable, se puede
 pasar el certificado PEM con `-BuildCaFile 'C:\ruta\ca.pem'`. El script lo

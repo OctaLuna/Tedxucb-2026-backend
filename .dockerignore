@@ -11,3 +11,4 @@ playwright-report
 *.log
 Dockerfile*
 deploy/artifacts
+.prisma-migration-fixture-*.tmp.config.ts
