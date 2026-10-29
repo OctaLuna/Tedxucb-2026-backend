@@ -34,15 +34,18 @@ credenciales en el repositorio o en los TAR.
 
 ## Carga en el servidor
 
-Transferir los seis TAR y el manifiesto; comprobar sus SHA-256 y cargarlos con
-`docker load`. Preparar `.env` en el servidor a partir de `.env.example`,
-configurar `IMAGE_TAG` con el tag empaquetado y confirmar que la red externa
-`tedx-facultyweek-edge` ya está conectada al Caddy existente. Aplicar las
+Transferir los seis TAR, el manifiesto y `server.env.example`; comprobar sus
+SHA-256 y cargarlos con `docker load`. En el directorio del stack del servidor,
+copiar `server.env.example` como `.env` y completar los placeholders con los
+valores del entorno. La plantilla contiene nombres y valores de ejemplo, nunca
+credenciales reales. Configurar `IMAGE_TAG` con el tag empaquetado y confirmar
+que la red externa `tedx-facultyweek-edge` ya está conectada al Caddy existente. Aplicar las
 migraciones con el servicio `migrate` y luego levantar el stack:
 
 Para actualizar TEDx de forma independiente, definir `TEDX_IMAGE_TAG` en el
 `.env` del servidor. Su valor solo aplica a `tedx-web`; los demás servicios
-siguen usando `IMAGE_TAG`.
+siguen usando `IMAGE_TAG`. Antes de levantar el stack, revisar la interpolación
+sin imprimir los valores con `docker compose --env-file .env -f compose.yaml config -q`.
 
 ```sh
 docker compose --env-file .env -f compose.yaml up -d
