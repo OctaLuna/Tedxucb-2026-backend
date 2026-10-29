@@ -1,0 +1,60 @@
+name: Package backend image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Immutable image tag, for example release-20261029-v4
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate release tag
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          if [[ ! "$IMAGE_TAG" =~ ^release-[0-9]{8}-v[0-9]+$ ]]; then
+            echo "Use an immutable tag such as release-20261029-v4."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and export linux/amd64 image
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" \
+            --tag "tedx-platform-backend:${IMAGE_TAG}" \
+            --file Dockerfile \
+            --output "type=docker,dest=/tmp/tedx-platform-backend.tar" \
+            .
+
+      - name: Create checksum and source manifest
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          gzip -1 -c /tmp/tedx-platform-backend.tar > tedx-platform-backend.tar.gz
+          printf 'tag=%s\nbackend_commit=%s\nplatform=linux/amd64\n' \
+            "$IMAGE_TAG" "$(git rev-parse HEAD)" > release-manifest.txt
+          sha256sum tedx-platform-backend.tar.gz > SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tedx-platform-backend-${{ inputs.image_tag }}
+          path: |
+            tedx-platform-backend.tar.gz
+            release-manifest.txt
+            SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7

@@ -45,10 +45,12 @@ credenciales reales. Configurar `IMAGE_TAG` con el tag empaquetado y confirmar
 que la red externa `tedx-facultyweek-edge` ya está conectada al Caddy existente. Aplicar las
 migraciones con el servicio `migrate` y luego levantar el stack:
 
-Para actualizar TEDx de forma independiente, definir `TEDX_IMAGE_TAG` en el
-`.env` del servidor. Su valor solo aplica a `tedx-web`; los demás servicios
-siguen usando `IMAGE_TAG`. Antes de levantar el stack, revisar la interpolación
-sin imprimir los valores con `docker compose --env-file .env -f compose.yaml config -q`.
+`IMAGE_TAG` sigue definiendo Avatar 2D e IDEATHON. Se pueden actualizar backend,
+Innovation y TEDx por separado con `BACKEND_IMAGE_TAG`,
+`INNOVATION_IMAGE_TAG` y `TEDX_IMAGE_TAG`; vacíos heredan `IMAGE_TAG`.
+El override de backend aplica tanto al API como al job `migrate`. Antes de
+levantar el stack, revisar la interpolación sin imprimir valores con
+`docker compose --env-file .env -f compose.yaml config -q`.
 
 ```sh
 docker compose --env-file .env -f compose.yaml up -d
