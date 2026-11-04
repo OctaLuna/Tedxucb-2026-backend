@@ -1,4 +1,4 @@
-tedxucb.sis-ucb.site {
+tedxucb.adm-ucb.lat {
 	encode gzip zstd
 	@swagger path /api/docs*
 	handle @swagger {
@@ -15,7 +15,7 @@ tedxucb.sis-ucb.site {
 	}
 }
 
-semana-fcef.sis-ucb.site {
+semana-fcef.adm-ucb.lat {
 	encode gzip zstd
 	@swagger path /api/docs*
 	handle @swagger {
@@ -41,7 +41,7 @@ semana-fcef.sis-ucb.site {
 	}
 }
 
-ideathon.sis-ucb.site {
+ideathon.adm-ucb.lat {
 	encode gzip zstd
 	handle {
 		reverse_proxy ideathon-web:80

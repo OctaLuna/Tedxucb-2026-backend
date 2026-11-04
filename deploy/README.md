@@ -64,6 +64,10 @@ existente de Amazonia.
 
 ## IDEATHON
 
-IDEATHON es actualmente una SPA informativa independiente, sin inicio de sesion ni llamadas a la API compartida. El empaquetado requiere Bun 1.4+ en el equipo de build, ejecuta una instalacion congelada y compila `dist` antes de crear la imagen Nginx. El host Caddy es `ideathon.sis-ucb.site`; Cloudflare necesita un registro `A` proxied con ese nombre hacia `201.131.41.89`. Caddy enruta internamente al servicio `ideathon-web:80`.
+IDEATHON es actualmente una SPA informativa independiente, sin inicio de sesion ni llamadas a la API compartida. El empaquetado requiere Bun 1.4+ en el equipo de build, ejecuta una instalacion congelada y compila `dist` antes de crear la imagen Nginx. Caddy publica `ideathon.adm-ucb.lat` y enruta internamente al servicio `ideathon-web:80`.
+
+## Dominios adm-ucb.lat
+
+La zona tiene registros `A` proxied hacia `201.131.41.89` para `tedxucb.adm-ucb.lat`, `semana-fcef.adm-ucb.lat` e `ideathon.adm-ucb.lat`. Caddy gestiona HTTPS con certificados de Let's Encrypt para esos tres hosts. `/api/v1` y `/uploads` se enrutan al backend por los hosts TEDx y Semana; `/avatar` y `/avatar/api` se enrutan al editor y servicio de avatar por el host Semana. PostgreSQL y Redis siguen en la red privada del stack y no se exponen. Añadir los dos hosts de aplicación a los orígenes JavaScript autorizados del cliente OAuth de Google. Para el editor, usar `-AvatarHostOrigins` al empaquetar su imagen; la Compose permite etiquetar una actualización independiente con `AVATAR_EDITOR_IMAGE_TAG`.
 
 La biblioteca de videos queda desactivada hasta que esten disponibles los MP4 aprobados. La ruta `/videos`, sus entradas de navegacion y llamadas desde las paginas redirigen a Inicio o estan ocultas. El manifiesto y la implementacion se conservan para rehabilitar la seccion al restaurar los archivos.
