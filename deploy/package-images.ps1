@@ -2,6 +2,7 @@ param(
     [string]$Tag = (Get-Date -Format 'yyyyMMdd-HHmmss'),
     [string]$WebLandingRoot = (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent),
     [string]$Components = 'backend,tedx,innovation,avatar-service,avatar-editor,ideathon',
+    [string]$AvatarHostOrigins = 'https://semana-fcef.sis-ucb.site,https://semana-fcef.adm-ucb.lat',
     [string]$BuildCaFile
 )
 
@@ -124,7 +125,7 @@ $images = @(
     @{ Component = 'tedx'; Name = 'tedx-platform-tedx'; Context = $tedxRoot; Dockerfile = (Join-Path $tedxRoot 'frontend\Dockerfile'); Args = @('--build-arg', 'NEXT_PUBLIC_API_BASE_URL=/api/v1', '--build-arg', "NEXT_PUBLIC_GOOGLE_CLIENT_ID=$tedxGoogle") },
     @{ Component = 'innovation'; Name = 'tedx-platform-innovation'; Context = $innovationRoot; Dockerfile = (Join-Path $innovationRoot 'deploy\Dockerfile'); Args = @('--build-arg', 'VITE_API_BASE_URL=/api/v1', '--build-arg', "VITE_GOOGLE_CLIENT_ID=$innovationGoogle", '--build-arg', 'VITE_AVATAR_2D_EDITOR_URL=/avatar/') },
     @{ Component = 'avatar-service'; Name = 'tedx-platform-avatar-service'; Context = $avatarRoot; Dockerfile = (Join-Path $avatarRoot 'Dockerfile.avatar-service'); Args = @() },
-    @{ Component = 'avatar-editor'; Name = 'tedx-platform-avatar-editor'; Context = $avatarRoot; Dockerfile = (Join-Path $avatarRoot 'Dockerfile.avatar-editor'); Args = @('--build-arg', 'VITE_HOST_ORIGINS=https://semana-fcef.sis-ucb.site', '--build-arg', 'VITE_BASE=/avatar/') },
+    @{ Component = 'avatar-editor'; Name = 'tedx-platform-avatar-editor'; Context = $avatarRoot; Dockerfile = (Join-Path $avatarRoot 'Dockerfile.avatar-editor'); Args = @('--build-arg', "VITE_HOST_ORIGINS=$AvatarHostOrigins", '--build-arg', 'VITE_BASE=/avatar/') },
     @{ Component = 'ideathon'; Name = 'tedx-platform-ideathon'; Context = $ideathonRoot; Dockerfile = (Join-Path $ideathonRoot 'deploy\Dockerfile'); Args = @() }
 )
 

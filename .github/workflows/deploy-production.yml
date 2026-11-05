@@ -1,0 +1,65 @@
+name: Build and deploy shared API
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-shared-api
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build production image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/amd64 --load \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --tag "tedx-platform-backend:$IMAGE_TAG" --file Dockerfile .
+          docker save "tedx-platform-backend:$IMAGE_TAG" | gzip -1 > "$RUNNER_TEMP/backend.tar.gz"
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KEY_PASSPHRASE: ${{ secrets.DEPLOY_SSH_KEY_PASSPHRASE }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          eval "$(ssh-agent -s)"
+          cat > "$HOME/.ssh/askpass" <<'ASKPASS'
+          #!/bin/sh
+          printf '%s\n' "$DEPLOY_SSH_KEY_PASSPHRASE"
+          ASKPASS
+          chmod 700 "$HOME/.ssh/askpass"
+          export DISPLAY=:0 SSH_ASKPASS="$HOME/.ssh/askpass" SSH_ASKPASS_REQUIRE=force
+          ssh-add "$HOME/.ssh/id_ed25519" </dev/null
+          printf 'SSH_AUTH_SOCK=%s\nSSH_AGENT_PID=%s\n' "$SSH_AUTH_SOCK" "$SSH_AGENT_PID" >> "$GITHUB_ENV"
+
+      - name: Transfer, migrate, and deploy only the API
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          IMAGE_TAG: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          ssh -i "$HOME/.ssh/id_ed25519" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" "$IMAGE_TAG" < "$RUNNER_TEMP/backend.tar.gz"

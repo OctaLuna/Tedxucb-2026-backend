@@ -96,7 +96,7 @@ services:
       retries: 5
 
   ideathon-web:
-    image: tedx-platform-ideathon:${IMAGE_TAG:-current}
+    image: tedx-platform-ideathon:${IDEATHON_IMAGE_TAG:-${IMAGE_TAG:-current}}
     restart: unless-stopped
     networks: [edge]
     healthcheck:
@@ -106,7 +106,7 @@ services:
       retries: 5
 
   avatar-service:
-    image: tedx-platform-avatar-service:${IMAGE_TAG:-current}
+    image: tedx-platform-avatar-service:${AVATAR_SERVICE_IMAGE_TAG:-${IMAGE_TAG:-current}}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -114,9 +114,9 @@ services:
       HOST: 0.0.0.0
       PORT: 4002
       DATABASE_PATH: /var/lib/avatar/avatars-2d.sqlite
-      EDITOR_ORIGIN: https://semana-fcef.sis-ucb.site
-      EDITOR_BASE_URL: https://semana-fcef.sis-ucb.site/avatar
-      PARENT_ORIGINS: https://semana-fcef.sis-ucb.site
+      EDITOR_ORIGIN: https://semana-fcef.adm-ucb.lat
+      EDITOR_BASE_URL: https://semana-fcef.adm-ucb.lat/avatar
+      PARENT_ORIGINS: https://semana-fcef.sis-ucb.site,https://semana-fcef.adm-ucb.lat
     volumes:
       - avatar_data:/var/lib/avatar
     networks: [edge]
@@ -128,7 +128,7 @@ services:
       start_period: 10s
 
   avatar-editor:
-    image: tedx-platform-avatar-editor:${IMAGE_TAG:-current}
+    image: tedx-platform-avatar-editor:${AVATAR_EDITOR_IMAGE_TAG:-${IMAGE_TAG:-current}}
     restart: unless-stopped
     depends_on:
       avatar-service:
