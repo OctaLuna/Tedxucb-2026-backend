@@ -24,7 +24,7 @@ case "$target" in
 esac
 
 exec 9>/tmp/tedx-platform-deploy.lock
-flock -w 180 9 || { echo 'Another platform deployment is running.' >&2; exit 4; }
+flock -w 1800 9 || { echo 'Another platform deployment is running after a 30-minute wait.' >&2; exit 4; }
 cd "$root"
 backup=$(mktemp)
 cp .env "$backup"
