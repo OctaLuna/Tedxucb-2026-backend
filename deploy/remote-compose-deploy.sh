@@ -117,13 +117,15 @@ trap finish EXIT
 
 gzip -dc | docker load
 if [[ "$target" == backend ]]; then
+  source_image="ghcr.io/octaluna/tedxucb-2026-backend:$tag"
   image="tedx-platform-backend:$tag"
-  revision=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")
-  architecture=$(docker image inspect --format '{{.Architecture}}' "$image")
+  revision=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$source_image")
+  architecture=$(docker image inspect --format '{{.Architecture}}' "$source_image")
   if [[ "$revision" != "$tag" || "$architecture" != amd64 ]]; then
     echo 'Loaded image does not match the requested commit or linux/amd64 architecture.' >&2
     exit 6
   fi
+  docker tag "$source_image" "$image"
 fi
 
 for key in "${keys[@]}"; do
