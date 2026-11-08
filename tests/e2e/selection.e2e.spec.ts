@@ -4,6 +4,7 @@ import { cleanRateLimits } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
 import { seedEvent } from '../support/seed-content';
+import { grantEventAccess, seedTestEvent } from '../support/seed-events';
 
 async function loginAs(request: import('@playwright/test').APIRequestContext, email: string) {
   const response = await request.post('/api/v1/auth/login', { data: { email, password: 'unaClaveSegura9' } });
@@ -18,6 +19,7 @@ async function loginAs(request: import('@playwright/test').APIRequestContext, em
 test.describe('selection: ejecución, consulta de entrada y control de acceso', () => {
   test.beforeEach(async () => {
     await cleanAllTables();
+    await seedTestEvent();
     await cleanRateLimits();
   });
 
@@ -27,6 +29,8 @@ test.describe('selection: ejecución, consulta de entrada y control de acceso', 
     const admin = await seedUser({ email: `e2e-admin-seleccion-${Date.now()}@ucb.edu.bo`, roles: ['ADMIN'] });
     const staff = await seedUser({ email: `e2e-staff-seleccion-${Date.now()}@ucb.edu.bo`, roles: ['STAFF'] });
     const { user: student } = await seedStudent({ email: `e2e-alumno-seleccion-${Date.now()}@ucb.edu.bo` });
+    await grantEventAccess(staff.email);
+    await grantEventAccess(student.email);
     await prismaTestClient.pointTransaction.create({
       data: { studentId: student.id, points: 60, type: 'BONUS', reason: 'seed e2e' },
     });

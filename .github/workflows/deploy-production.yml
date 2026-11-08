@@ -1,11 +1,13 @@
 name: Build and deploy shared API
 
 on:
-  push:
+  workflow_run:
+    workflows: [Backend integration]
+    types: [completed]
     branches: [main]
-  workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -13,24 +15,84 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  publish-and-deploy:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - name: Confirm this is still the latest main commit before publishing
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: branch } = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: 'main',
+            });
+            const sha = context.payload.workflow_run.head_sha;
+            if (branch.commit.sha !== sha) {
+              core.setFailed(`Refusing stale release ${sha}; main is ${branch.commit.sha}.`);
+            }
 
-      - name: Build production image
+      - name: Download the tested image
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-image-${{ github.event.workflow_run.head_sha }}
+          path: ${{ runner.temp }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Load and verify the tested image
+        shell: bash
         env:
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          docker buildx build --platform linux/amd64 --load \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-            --tag "tedx-platform-backend:$IMAGE_TAG" --file Dockerfile .
-          docker save "tedx-platform-backend:$IMAGE_TAG" | gzip -1 > "$RUNNER_TEMP/backend.tar.gz"
+          docker load --input "$RUNNER_TEMP/backend-image.tar.gz"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$IMAGE_TAG"
+          revision=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")
+          [[ "$revision" == "$IMAGE_TAG" ]]
 
-      - name: Configure SSH
+      - name: Authenticate to GitHub Container Registry
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Publish immutable image and capture its digest
+        id: publish
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$IMAGE_TAG"
+          push_log=$(docker push "$image" 2>&1) || { printf '%s\n' "$push_log"; exit 1; }
+          printf '%s\n' "$push_log"
+          digest=$(printf '%s\n' "$push_log" | sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' | tail -n 1)
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Confirm this is still the latest main commit before deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: branch } = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: 'main',
+            });
+            const sha = context.payload.workflow_run.head_sha;
+            if (branch.commit.sha !== sha) {
+              core.setFailed(`Refusing stale deployment ${sha}; main is ${branch.commit.sha}.`);
+            }
+
+      - name: Configure restricted SSH access
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_SSH_KEY_PASSPHRASE: ${{ secrets.DEPLOY_SSH_KEY_PASSPHRASE }}
@@ -51,15 +113,18 @@ jobs:
           ssh-add "$HOME/.ssh/id_ed25519" </dev/null
           printf 'SSH_AUTH_SOCK=%s\nSSH_AGENT_PID=%s\n' "$SSH_AUTH_SOCK" "$SSH_AGENT_PID" >> "$GITHUB_ENV"
 
-      - name: Transfer, migrate, and deploy only the API
+      - name: Transfer the tested image and deploy only the API service
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
         shell: bash
         run: |
           set -euo pipefail
           [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
           [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           ssh -i "$HOME/.ssh/id_ed25519" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes \
-            "$DEPLOY_USER@$DEPLOY_HOST" "$IMAGE_TAG" < "$RUNNER_TEMP/backend.tar.gz"
+            "$DEPLOY_USER@$DEPLOY_HOST" "$IMAGE_TAG $IMAGE_DIGEST" < "$RUNNER_TEMP/backend-image.tar.gz"

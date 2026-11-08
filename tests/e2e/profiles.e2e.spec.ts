@@ -4,10 +4,12 @@ import { cleanRateLimits } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent, seedCareer } from '../support/seed-catalog';
 import { MINIMAL_VALID_PNG } from '../support/fixtures';
+import { grantEventAccess, seedTestEvent } from '../support/seed-events';
 
 test.describe('profiles: perfil propio, avatar, listado de monitoreo', () => {
   test.beforeEach(async () => {
     await cleanAllTables();
+    await seedTestEvent();
     await cleanRateLimits();
   });
 
@@ -51,7 +53,8 @@ test.describe('profiles: perfil propio, avatar, listado de monitoreo', () => {
     const admin = await seedUser({ email: `e2e-admin-${Date.now()}@ucb.edu.bo`, roles: ['ADMIN'] });
     const staff = await seedUser({ email: `e2e-staff-${Date.now()}@ucb.edu.bo`, roles: ['STAFF'] });
     const { career } = await seedCareer({ careerName: `Carrera E2E ${Date.now()}` });
-    await seedStudent({ email: `e2e-alumno-${Date.now()}@ucb.edu.bo`, fullName: 'Alumno Filtrado', careerId: career.id });
+    const { user: student } = await seedStudent({ email: `e2e-alumno-${Date.now()}@ucb.edu.bo`, fullName: 'Alumno Filtrado', careerId: career.id });
+    await grantEventAccess(student.email);
 
     const adminLogin = await request.post('/api/v1/auth/login', {
       data: { email: admin.email, password: 'unaClaveSegura9' },

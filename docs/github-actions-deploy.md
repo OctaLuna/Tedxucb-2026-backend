@@ -2,7 +2,11 @@
 
 ## Production flow
 
-Each deployable repository builds a Linux/amd64 image on a push to `main`, transfers that immutable commit-tagged image over SSH, then recreates only its Compose service. Deployment steps share a server-side `flock` lock, update only that service's image tag in `.env`, check health, and restore the previous tag and container if verification fails.
+The backend runs the integration workflow for pull requests to `develop` and `main`. It applies migrations to disposable PostgreSQL, runs unit/contract/integration and API e2e suites, builds the Linux/amd64 image, and checks its health endpoint in a temporary container. On `main`, the tested image is passed to a serialized release job, published to GHCR under the commit SHA, and its manifest digest is recorded.
+
+Before deployment, the job confirms the workflow SHA is still the tip of `main`. It sends the tested image stream plus SHA and digest through the repository's restricted SSH key. The server accepts only the backend release target, checks commit label/architecture and the existing Compose project/service/image identity, records the SHA and digest in the project `.env`, runs pending migrations, and recreates only `backend`. A shared `flock` serializes releases across repositories. If health verification fails after replacement, the server restores the prior `.env` and backend image and verifies its health. Other repositories continue using their current SHA-only release command.
+
+Create `develop` from the current `main` before opening development PRs. Pushes to `main` run CI and deploy automatically; no Vercel deletion is part of this workflow.
 
 | Repository | Workflow | Image tag in server `.env` | Compose service |
 | --- | --- | --- | --- |
@@ -32,4 +36,10 @@ IDEATHON uses the additional secrets `IDEATHON_DEPLOY_KEY`, `IDEATHON_DEPLOY_KEY
 
 ## Server scope
 
-The workflows use the server entrypoints `/home/adminkaaiya/.local/bin/tedx-platform-deploy` and `/home/adminkaaiya/.local/bin/ideathon-release-entry`, with the Compose project at `/home/adminkaaiya/projects/tedx-facultyweek-platform/compose.yaml` and the existing project `.env`. They do not rebuild or restart PostgreSQL, Redis, Caddy, Porerekua, or Amazonia. Image streams are not persisted as tar files, and old immutable images remain available for rollback.
+The workflows use the server entrypoints `/home/adminkaaiya/.local/bin/tedx-platform-deploy` and `/home/adminkaaiya/.local/bin/ideathon-release-entry`, with the Compose project at `/home/adminkaaiya/projects/tedx-facultyweek-platform/compose.yaml` and the existing project `.env`. The backend release does not rebuild or restart PostgreSQL, Redis, Caddy, Porerekua, or Amazonia. Its short-lived image archive is streamed over SSH and not persisted on the server; GHCR keeps the immutable SHA-tagged package and digest for reference. Old local images remain available for rollback.
+
+## Domain and remaining provider work
+
+The Caddy source has an additive API-only route for `kaaiya.lpz.ucb.edu.bo`; this environment could not resolve that hostname during setup. Do not reload the shared gateway or retire Vercel until DNS resolves to the VPS, the current Caddy state is checked, and HTTPS/API checks succeed. Keep the existing TEDx and Innovation Week host routes intact.
+
+The current server Compose stack owns its PostgreSQL, Redis, and uploads volume. Provider work that remains outside that stack (including external SMTP delivery and any optional QStash usage) stays as technical debt; it is not migrated or reconfigured by the backend release workflow.

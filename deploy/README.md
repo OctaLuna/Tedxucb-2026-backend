@@ -1,5 +1,13 @@
 # Empaquetado de la plataforma
 
+## Backend: GitHub Actions
+
+The `backend-integration.yml` workflow checks PRs to `develop` and `main`, including the API end-to-end suite and a container health smoke test. A push to `main` publishes that already-tested Linux/amd64 image to GHCR under the commit SHA, records the registry digest, then transfers the image to the existing restricted deployment entrypoint. The remote release validates the image revision and architecture, runs pending Prisma migrations, recreates only the `backend` service, and verifies or rolls back that service. It requires the existing `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_SSH_KEY_PASSPHRASE`, and `DEPLOY_KNOWN_HOSTS` repository secrets.
+
+The server-side entrypoint at `/home/adminkaaiya/.local/bin/tedx-platform-deploy` must match `remote-compose-deploy.sh` before enabling the two-value (`commit SHA` and `GHCR digest`) backend release command. Install that update through the approved server administration channel; the backend's forced SSH key does not grant an interactive shell. Do not use the shared account password in GitHub Actions.
+
+The Caddy source includes `kaaiya.lpz.ucb.edu.bo` as an API-only route. Apply that route only after the domain resolves to the VPS and the server's current Caddy configuration has been inventoried and validated. A GitHub Actions backend release does not reload Caddy or change DNS.
+
 El stack de servidor está definido en `compose.yaml`: PostgreSQL, Redis,
 migración one-shot, API compartida, TEDx, Innovation Week, IDEATHON, Avatar 2D API y
 editor. El gateway Caddy existente se configura por separado con

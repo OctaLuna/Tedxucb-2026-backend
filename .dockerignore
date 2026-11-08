@@ -2,6 +2,12 @@
 .env
 .env.*
 !.env.example
+.aws
+.claude
+.ssh
+CREDENCIALES.local.md
+*.key
+*.pem
 node_modules
 dist
 uploads

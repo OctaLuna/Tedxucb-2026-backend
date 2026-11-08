@@ -3,10 +3,12 @@ import { cleanAllTables } from '../support/prisma-test-client';
 import { cleanRateLimits } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
+import { grantEventAccess, seedTestEvent } from '../support/seed-events';
 
 test.describe('points: ajuste manual, historial y reversión (T086 de 003-b, ciclo del prompt)', () => {
   test.beforeEach(async () => {
     await cleanAllTables();
+    await seedTestEvent();
     await cleanRateLimits();
   });
 
@@ -15,6 +17,7 @@ test.describe('points: ajuste manual, historial y reversión (T086 de 003-b, cic
   }) => {
     const admin = await seedUser({ email: `e2e-admin-points-${Date.now()}@ucb.edu.bo`, roles: ['ADMIN'] });
     const { user: student } = await seedStudent({ email: `e2e-alumno-points-${Date.now()}@ucb.edu.bo` });
+    await grantEventAccess(student.email);
 
     const adminLogin = await request.post('/api/v1/auth/login', {
       data: { email: admin.email, password: 'unaClaveSegura9' },
