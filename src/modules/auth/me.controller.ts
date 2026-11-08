@@ -5,6 +5,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { AccessTokenPayload } from './token-pair.service';
 import { UpdateNicknameDto } from './dto/update-nickname.dto';
+import { UpdateRegistrationDto } from './dto/update-registration.dto';
 import { AvatarBridgeTokenService } from './avatar-bridge-token.service';
 import { AppException } from '../../common/exceptions/app.exception';
 import { AllowIncompleteProfile } from './decorators/allow-incomplete-profile.decorator';
@@ -34,6 +35,12 @@ export class MeController {
   @AllowIncompleteProfile()
   async updateNickname(@CurrentUser() user: AccessTokenPayload, @Body() dto: UpdateNicknameDto) {
     return this.authService.updateNickname(user.sub, dto.nickname);
+  }
+
+  @Patch('registration')
+  @AllowIncompleteProfile()
+  async updateRegistration(@CurrentUser() user: AccessTokenPayload, @Body() dto: UpdateRegistrationDto) {
+    return this.authService.updateRegistration(user.sub, dto.nickname, dto.phone);
   }
 
   @Get('avatar-session')

@@ -19,6 +19,7 @@ model User {
   passwordHash       String?  @map("password_hash")
   fullName           String   @map("full_name")
   nickname           String?
+  phone              String?
   nicknameKey        String?  @unique @map("nickname_key")
   status             String   @default("PENDING")
   registrationSource String   @map("registration_source")

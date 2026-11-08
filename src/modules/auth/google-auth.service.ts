@@ -144,7 +144,7 @@ export class GoogleAuthService {
     const pair = await this.tokens.issue({ id: user.id, status: user.status, roles });
     return {
       ...pair,
-      user: { id: user.id, email: user.email, fullName: user.fullName, nickname: user.nickname,
+      user: { id: user.id, email: user.email, fullName: user.fullName, nickname: user.nickname, phone: user.phone,
         nicknameRequired: !user.nickname, roles, status: user.status },
     };
   }

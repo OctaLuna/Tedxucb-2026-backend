@@ -36,6 +36,30 @@ describe('PATCH /api/v1/me/nickname (contrato RF-509/510)', () => {
     await cleanRateLimits();
   });
 
+  it('guarda apodo y teléfono juntos y los devuelve al recuperar la cuenta', async () => {
+    const user = await seedUser({ email: 'registration-phone@ucb.edu.bo', nickname: null, roles: ['ALUMNO'] });
+    const token = await loginAs(app, user.email);
+    const saved = await request(app.getHttpServer()).patch('/api/v1/me/registration')
+      .set('Authorization', `Bearer ${token}`).send({ nickname: 'Luna27', phone: '+591 7000-0000' });
+    expect(saved.status).toBe(200);
+    expect(saved.body).toEqual({ nickname: 'Luna27', phone: '+59170000000' });
+    const stored = await prismaTestClient.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(stored.phone).toBe('+59170000000');
+    const me = await request(app.getHttpServer()).get('/api/v1/me').set('Authorization', `Bearer ${token}`);
+    expect(me.body).toMatchObject({ nickname: 'Luna27', phone: '+59170000000' });
+  });
+
+  it('no guarda el apodo cuando el teléfono es inválido', async () => {
+    const user = await seedUser({ email: 'registration-invalid@ucb.edu.bo', nickname: null, roles: ['ALUMNO'] });
+    const token = await loginAs(app, user.email);
+    const result = await request(app.getHttpServer()).patch('/api/v1/me/registration')
+      .set('Authorization', `Bearer ${token}`).send({ nickname: 'Luna28', phone: '123' });
+    expect(result.status).toBe(400);
+    const stored = await prismaTestClient.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(stored.nickname).toBeNull();
+    expect(stored.phone).toBeNull();
+  });
+
   it('allows account inspection and nickname completion but blocks normal routes beforehand', async () => {
     await seedTestEvent('tedxucb');
     const user = await seedUser({ email: 'onboarding-required@ucb.edu.bo', nickname: null, roles: ['ALUMNO'] });

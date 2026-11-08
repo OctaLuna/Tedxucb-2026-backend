@@ -19,6 +19,7 @@ export interface MeResult {
   roles: string[];
   status: string;
   nickname: string | null;
+  phone: string | null;
 }
 
 @Injectable()
@@ -153,10 +154,28 @@ export class AuthService {
       roles: user.roles.map((r) => r.role),
       status: user.status,
       nickname: user.nickname,
+      phone: user.phone,
     };
   }
 
   async updateNickname(userId: string, input: unknown): Promise<{ nickname: string }> {
+    return this.updateIdentity(userId, input);
+  }
+
+  async updateRegistration(userId: string, input: unknown, phoneInput: unknown): Promise<{ nickname: string; phone: string }> {
+    if (typeof phoneInput !== 'string' || !/^\+?[\d\s().-]+$/.test(phoneInput.trim())) {
+      throw new AppException(400, 'INVALID_PHONE', 'Ingresa un número de teléfono válido.');
+    }
+    const digits = phoneInput.replace(/\D/g, '');
+    if (digits.length < 7 || digits.length > 15) {
+      throw new AppException(400, 'INVALID_PHONE', 'El teléfono debe tener entre 7 y 15 dígitos.');
+    }
+    const phone = `${phoneInput.trim().startsWith('+') ? '+' : ''}${digits}`;
+    const result = await this.updateIdentity(userId, input, phone);
+    return { ...result, phone };
+  }
+
+  private async updateIdentity(userId: string, input: unknown, phone?: string): Promise<{ nickname: string }> {
     if (typeof input !== 'string') {
       throw new AppException(400, 'INVALID_NICKNAME', 'El apodo debe contener al menos tres letras o números.');
     }
@@ -168,7 +187,7 @@ export class AuthService {
     try {
       const result = await this.prisma.user.updateMany({
         where: { id: userId, status: UserStatus.ACTIVE },
-        data: { nickname, nicknameKey: nickname.toLowerCase().normalize('NFKC') },
+        data: { nickname, nicknameKey: nickname.toLowerCase().normalize('NFKC'), ...(phone === undefined ? {} : { phone }) },
       });
       if (result.count === 0) {
         throw new AppException(403, 'ACCOUNT_NOT_ACTIVE', 'Tu cuenta no está activa.');
