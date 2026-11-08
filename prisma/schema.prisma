@@ -42,6 +42,7 @@ model User {
   updatedContentBlocks       ContentBlock[]
   createdSpeakers            Speaker[]
   createdProgramItems        EventProgramItem[]   @relation("EventProgramCreatedBy")
+  programEnrollments         ProgramEnrollment[]
   createdLiveActivities      EventLiveActivity[]  @relation("EventLiveActivityCreatedBy")
   updatedLiveActivities      EventLiveActivity[]  @relation("EventLiveActivityUpdatedBy")
   reviewedApplications       SpeakerApplication[]
@@ -394,11 +395,24 @@ model EventProgramItem {
   speaker        Speaker?            @relation(fields: [speakerId, eventId], references: [id, eventId], onDelete: Restrict)
   createdBy      User?               @relation("EventProgramCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   liveActivities EventLiveActivity[]
+  enrollments    ProgramEnrollment[]
 
   @@unique([id, eventId])
   @@index([eventId, status, startsAt])
   @@index([eventId, displayOrder, startsAt])
   @@map("event_program_items")
+}
+
+model ProgramEnrollment {
+  userId        String   @map("user_id") @db.Uuid
+  programItemId String   @map("program_item_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programItem   EventProgramItem @relation(fields: [programItemId], references: [id], onDelete: Restrict)
+
+  @@id([userId, programItemId])
+  @@index([programItemId])
+  @@map("program_enrollments")
 }
 
 model EventLiveSettings {
