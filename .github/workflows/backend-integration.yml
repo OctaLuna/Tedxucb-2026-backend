@@ -2,7 +2,7 @@ name: Backend integration
 
 on:
   pull_request:
-    branches: [main]
+    branches: [develop, main]
     paths:
       - 'src/**'
       - 'tests/**'
@@ -12,19 +12,12 @@ on:
       - 'package-lock.json'
       - 'prisma.config.ts'
       - 'docker-compose.test.yml'
-      - '.github/workflows/backend-integration.yml'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'deploy/**'
+      - '.github/workflows/**'
   push:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'prisma/**'
-      - 'scripts/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'prisma.config.ts'
-      - 'docker-compose.test.yml'
-      - '.github/workflows/backend-integration.yml'
   workflow_dispatch:
 
 permissions:
@@ -53,10 +46,15 @@ jobs:
       PUBLIC_FRONTEND_URL_INNOVATION_WEEK: http://localhost:5173
       SMTP_HOST: localhost
       SMTP_PORT: 1025
+      MAIL_FROM: TEDxUCB CI <ci@example.test>
+      PORT: 3000
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -81,6 +79,75 @@ jobs:
 
       - name: Verify event-scope migrations with sanitized fixtures
         run: npm run test:migrations:local
+
+      - name: Run API end-to-end suite
+        run: npm run test:e2e
+
+      - name: Build the production image
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$IMAGE_TAG"
+          docker buildx build --platform linux/amd64 --load \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --tag "$image" --file Dockerfile .
+
+      - name: Smoke-test the production image
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$IMAGE_TAG"
+          docker run --detach --rm --network host --name ted-backend-image-smoke \
+            --env NODE_ENV=production \
+            --env PORT=3200 \
+            --env DATABASE_URL=postgresql://ted_test:local_test_only@127.0.0.1:55432/ted_integration_test?schema=public \
+            --env DIRECT_URL=postgresql://ted_test:local_test_only@127.0.0.1:55432/ted_integration_test?schema=public \
+            --env REDIS_URL=redis://127.0.0.1:56379 \
+            --env JWT_SECRET=ci-only-jwt-secret-not-for-deployment-20261029 \
+            --env QR_TOKEN_SECRET=ci-only-qr-secret-not-for-deployment-20261029 \
+            --env AVATAR_BRIDGE_SECRET=ci-only-avatar-secret-not-for-deployment-20261029 \
+            --env GOOGLE_CLIENT_ID=backend-test-client.apps.googleusercontent.com \
+            "$image"
+          cleanup() { docker rm -f ted-backend-image-smoke >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for attempt in $(seq 1 36); do
+            status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' ted-backend-image-smoke 2>/dev/null || true)
+            if [[ "$status" == healthy ]]; then
+              curl --fail --silent --show-error http://127.0.0.1:3200/api/v1/health
+              exit 0
+            fi
+            if [[ "$status" == unhealthy || "$status" == exited ]]; then
+              docker logs ted-backend-image-smoke
+              exit 1
+            fi
+            sleep 5
+          done
+          docker logs ted-backend-image-smoke
+          echo 'Production image did not become healthy.' >&2
+          exit 1
+
+      - name: Export image for the serialized production release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$IMAGE_TAG"
+          docker save "$image" | gzip -1 > "$RUNNER_TEMP/backend-image.tar.gz"
+
+      - name: Upload immutable image artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-image-${{ github.sha }}
+          path: ${{ runner.temp }}/backend-image.tar.gz
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Stop test services
         if: always()
