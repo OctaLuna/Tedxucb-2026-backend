@@ -3,6 +3,7 @@ import { cleanAllTables } from '../support/prisma-test-client';
 import { cleanRateLimits } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
+import { grantEventAccess, seedTestEvent } from '../support/seed-events';
 
 async function loginAs(request: import('@playwright/test').APIRequestContext, email: string) {
   const response = await request.post('/api/v1/auth/login', { data: { email, password: 'unaClaveSegura9' } });
@@ -18,6 +19,7 @@ async function loginAs(request: import('@playwright/test').APIRequestContext, em
 test.describe('points + leaderboard: un ajuste administrativo real mueve el ranking', () => {
   test.beforeEach(async () => {
     await cleanAllTables();
+    await seedTestEvent();
     await cleanRateLimits();
   });
 
@@ -25,6 +27,8 @@ test.describe('points + leaderboard: un ajuste administrativo real mueve el rank
     const admin = await seedUser({ email: `e2e-admin-cruzado-${Date.now()}@ucb.edu.bo`, roles: ['ADMIN'] });
     const { user: a } = await seedStudent({ email: `e2e-cruzado-a-${Date.now()}@ucb.edu.bo` });
     const { user: b } = await seedStudent({ email: `e2e-cruzado-b-${Date.now()}@ucb.edu.bo` });
+    await grantEventAccess(a.email);
+    await grantEventAccess(b.email);
     const adminToken = await loginAs(request, admin.email);
     const viewerToken = await loginAs(request, a.email);
 

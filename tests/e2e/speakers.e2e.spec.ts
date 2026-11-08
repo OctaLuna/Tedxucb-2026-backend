@@ -1,18 +1,20 @@
 import { test, expect } from '@playwright/test';
-import { cleanAllTables, prismaTestClient } from '../support/prisma-test-client';
+import { cleanAllTables } from '../support/prisma-test-client';
 import { cleanRateLimits } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { clearMailpit, waitForMailpitMessage } from '../support/mailpit-client';
+import { seedSpeaker, seedTestEvent } from '../support/seed-speakers';
 
 test.describe('speakers: fichas, postulaciones y conversión', () => {
   test.beforeEach(async () => {
     await cleanAllTables();
+    await seedTestEvent();
     await cleanRateLimits();
     await clearMailpit();
   });
 
   test('un speaker no publicado no aparece por ningún medio público', async ({ request }) => {
-    const draft = await prismaTestClient.speaker.create({ data: { fullName: 'No Publicado' } });
+    const draft = await seedSpeaker({ fullName: 'No Publicado' });
 
     const publicList = await request.get('/api/v1/public/speakers');
     const listBody = await publicList.json();

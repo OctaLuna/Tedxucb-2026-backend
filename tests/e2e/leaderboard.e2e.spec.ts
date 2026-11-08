@@ -3,6 +3,7 @@ import { cleanAllTables, prismaTestClient } from '../support/prisma-test-client'
 import { cleanRateLimits } from '../support/redis-test-client';
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
+import { grantEventAccess, seedTestEvent } from '../support/seed-events';
 
 async function loginAs(request: import('@playwright/test').APIRequestContext, email: string) {
   const response = await request.post('/api/v1/auth/login', { data: { email, password: 'unaClaveSegura9' } });
@@ -17,6 +18,7 @@ async function grantPoints(studentId: string, points: number) {
 test.describe('leaderboard: ranking, progreso y exportación', () => {
   test.beforeEach(async () => {
     await cleanAllTables();
+    await seedTestEvent();
     await cleanRateLimits();
   });
 
@@ -27,6 +29,9 @@ test.describe('leaderboard: ranking, progreso y exportación', () => {
       email: `e2e-deshabilitado-${Date.now()}@ucb.edu.bo`,
       status: 'DISABLED',
     });
+    await grantEventAccess(leader.email);
+    await grantEventAccess(runnerUp.email);
+    await grantEventAccess(disabled.email);
     await grantPoints(leader.id, 80);
     await grantPoints(runnerUp.id, 40);
 
@@ -46,6 +51,7 @@ test.describe('leaderboard: ranking, progreso y exportación', () => {
   test('un ADMIN exporta el ranking en CSV', async ({ request }) => {
     const admin = await seedUser({ email: `e2e-admin-export-${Date.now()}@ucb.edu.bo`, roles: ['ADMIN'] });
     const { user: student } = await seedStudent({ email: `e2e-exportado-${Date.now()}@ucb.edu.bo` });
+    await grantEventAccess(student.email);
     await grantPoints(student.id, 25);
 
     const token = await loginAs(request, admin.email);
