@@ -2,11 +2,12 @@ import { createHash } from 'node:crypto';
 import { ProgramAttendanceService } from './program-attendance.service';
 import type { PrismaService } from '../../common/prisma/prisma.service';
 import type { EventAccessService } from '../event-access/event-access.service';
+import type { LedgerService } from '../../common/ledger/ledger.service';
 
 const token = 'a'.repeat(43);
 const tokenHash = createHash('sha256').update(token).digest('hex');
 const item = (patch: Record<string, unknown> = {}) => ({
-  id: 'item-1', title: 'Charla', status: 'PUBLISHED', type: 'TALK',
+  id: 'item-1', eventId: 'event-1', title: 'Charla', status: 'PUBLISHED', type: 'TALK',
   startsAt: new Date('2026-11-08T09:00:00Z'), endsAt: new Date('2026-11-08T10:00:00Z'),
   event: { slug: 'innovation-week', status: 'PUBLISHED' }, ...patch,
 });
@@ -16,21 +17,30 @@ describe('ProgramAttendanceService', () => {
   const attendanceFind = jest.fn();
   const attendanceCreate = jest.fn();
   const itemsFind = jest.fn();
+  const activityFind = jest.fn().mockResolvedValue(null);
+  const ledgerRecord = jest.fn().mockImplementation(async (_tx: unknown, input: { points: number }) => ({ points: input.points }));
   const itemFindFirst = jest.fn().mockImplementation(({ where }: { where: { id: string } }) => Promise.resolve(item({ id: where.id })));
   const transactionTx = {
     $queryRaw: jest.fn(),
     programAttendanceLink: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), create: jest.fn().mockResolvedValue({ id: 'link-1', createdAt: new Date() }) },
     auditLog: { create: jest.fn() },
+    programAttendance: { create: attendanceCreate },
+    activity: { findUnique: activityFind },
+    pointTransaction: { findUnique: jest.fn().mockResolvedValue(null) },
+    eventStudentPoints: { findUnique: jest.fn().mockResolvedValue(null) },
   };
   const service = new ProgramAttendanceService({
     event: { findUnique: jest.fn().mockResolvedValue({ id: 'event-1', status: 'PUBLISHED' }) },
     eventProgramItem: { findFirst: itemFindFirst, findMany: itemsFind },
     programAttendanceLink: { findUnique: linkFind, findFirst: jest.fn(), create: jest.fn(), updateMany: jest.fn() },
     programAttendance: { findUnique: attendanceFind, create: attendanceCreate, findMany: jest.fn().mockResolvedValue([]) },
+    pointTransaction: { findUnique: jest.fn().mockResolvedValue(null) },
+    eventStudentPoints: { findUnique: jest.fn().mockResolvedValue(null) },
     programEnrollment: { findMany: jest.fn().mockResolvedValue([]) },
     auditLog: { create: jest.fn() },
     $transaction: jest.fn((callback: (tx: any) => unknown) => callback(transactionTx)),
-  } as unknown as PrismaService, { assertEventAccess: jest.fn().mockResolvedValue(undefined) } as unknown as EventAccessService);
+  } as unknown as PrismaService, { assertEventAccess: jest.fn().mockResolvedValue(undefined) } as unknown as EventAccessService,
+    { recordMovement: ledgerRecord } as unknown as LedgerService);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -103,6 +113,40 @@ describe('ProgramAttendanceService', () => {
     const retry = await service.confirm('user-1', token);
     expect(retry.data.alreadyConfirmed).toBe(true);
     expect(attendanceCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('awards the configured activity points atomically for a program attendance', async () => {
+    linkFind.mockResolvedValue({ tokenHash, revokedAt: null, programItem: item() });
+    attendanceFind.mockResolvedValue(null);
+    attendanceCreate.mockResolvedValue({ id: 'attendance-scored', checkedInAt: new Date() });
+    activityFind.mockResolvedValue({ id: 'activity-1', pointsValue: 10 });
+    transactionTx.eventStudentPoints.findUnique.mockResolvedValue({ totalPoints: 10 });
+
+    const result = await service.confirm('user-1', token);
+
+    expect(result.data).toMatchObject({ alreadyConfirmed: false, pointsAwarded: 10, newTotal: 10 });
+    expect(ledgerRecord).toHaveBeenCalledWith(transactionTx, expect.objectContaining({
+      eventId: 'event-1',
+      studentId: 'user-1',
+      activityId: 'activity-1',
+      programAttendanceId: 'attendance-scored',
+      idempotencyKey: 'checkin:activity-1:user-1',
+      points: 10,
+    }));
+  });
+
+  it('does not award NFC points again when the user already earned activity points by another check-in path', async () => {
+    linkFind.mockResolvedValue({ tokenHash, revokedAt: null, programItem: item() });
+    attendanceFind.mockResolvedValue(null);
+    attendanceCreate.mockResolvedValue({ id: 'attendance-already-scored', checkedInAt: new Date() });
+    activityFind.mockResolvedValue({ id: 'activity-1', pointsValue: 10 });
+    transactionTx.pointTransaction.findUnique.mockResolvedValue({ id: 'prior-award' });
+    transactionTx.eventStudentPoints.findUnique.mockResolvedValue({ totalPoints: 10 });
+
+    const result = await service.confirm('user-1', token);
+
+    expect(result.data).toMatchObject({ pointsAwarded: 0, newTotal: 10 });
+    expect(ledgerRecord).not.toHaveBeenCalled();
   });
 
   it('previews the talk without writing an attendance row', async () => {

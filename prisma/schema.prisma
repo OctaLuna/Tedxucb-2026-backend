@@ -214,8 +214,8 @@ model StudentProfile {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  user               User                 @relation(fields: [userId], references: [id])
-  career             Career               @relation(fields: [careerId], references: [id])
+  user               User                @relation(fields: [userId], references: [id])
+  career             Career              @relation(fields: [careerId], references: [id])
   consentAcceptances ConsentAcceptance[]
   correctionRequests CorrectionRequest[]
   selections         Selection[]
@@ -379,19 +379,19 @@ model Speaker {
 }
 
 model EventProgramItem {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  eventId         String   @map("event_id") @db.Uuid
-  speakerId       String?  @map("speaker_id") @db.Uuid
-  createdById     String?  @map("created_by") @db.Uuid
-  title           String
-  description     String?
-  type            String   @default("TALK")
-  startsAt        DateTime @map("starts_at") @db.Timestamptz
-  endsAt          DateTime @map("ends_at") @db.Timestamptz
-  displayOrder    Int      @default(0) @map("display_order")
-  status          String   @default("DRAFT")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId      String   @map("event_id") @db.Uuid
+  speakerId    String?  @map("speaker_id") @db.Uuid
+  createdById  String?  @map("created_by") @db.Uuid
+  title        String
+  description  String?
+  type         String   @default("TALK")
+  startsAt     DateTime @map("starts_at") @db.Timestamptz
+  endsAt       DateTime @map("ends_at") @db.Timestamptz
+  displayOrder Int      @default(0) @map("display_order")
+  status       String   @default("DRAFT")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   event           Event                   @relation(fields: [eventId], references: [id], onDelete: Restrict)
   speaker         Speaker?                @relation(fields: [speakerId, eventId], references: [id, eventId], onDelete: Restrict)
@@ -400,6 +400,7 @@ model EventProgramItem {
   enrollments     ProgramEnrollment[]
   attendances     ProgramAttendance[]
   attendanceLinks ProgramAttendanceLink[]
+  activity        Activity?
 
   @@unique([id, eventId])
   @@index([eventId, status, startsAt])
@@ -426,8 +427,9 @@ model ProgramAttendance {
   checkedInAt   DateTime @default(now()) @map("checked_in_at") @db.Timestamptz
   method        String   @default("NFC_LINK")
 
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  programItem EventProgramItem @relation(fields: [programItemId], references: [id], onDelete: Restrict)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programItem      EventProgramItem  @relation(fields: [programItemId], references: [id], onDelete: Restrict)
+  pointTransaction PointTransaction?
 
   @@unique([userId, programItemId])
   @@index([programItemId, checkedInAt])
@@ -612,11 +614,13 @@ model Activity {
   checkinClosesAt       DateTime @map("checkin_closes_at") @db.Timestamptz
   allowMultipleCheckins Boolean  @default(false) @map("allow_multiple_checkins")
   status                String   @default("DRAFT")
+  programItemId         String?  @unique @map("program_item_id") @db.Uuid
   createdById           String   @map("created_by") @db.Uuid
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
   event             Event              @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  programItem       EventProgramItem?  @relation(fields: [programItemId], references: [id], onDelete: Restrict)
   category          ActivityCategory?  @relation(fields: [categoryId, eventId], references: [id, eventId])
   createdBy         User               @relation("ActivityCreatedBy", fields: [createdById], references: [id])
   staff             ActivityStaff[]
@@ -674,25 +678,27 @@ model Attendance {
 // forbid_ledger_mutation (migración) rechaza UPDATE/DELETE. Nunca se
 // escribe fuera de LedgerService (src/common/ledger/).
 model PointTransaction {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  studentId      String   @map("student_id") @db.Uuid
-  points         Int
-  type           String
-  activityId     String?  @map("activity_id") @db.Uuid
-  attendanceId   String?  @unique @map("attendance_id") @db.Uuid
-  reversesId     String?  @unique @map("reverses_id") @db.Uuid
-  reason         String?
-  createdById    String?  @map("created_by") @db.Uuid
-  idempotencyKey String?  @unique @map("idempotency_key")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId           String   @map("student_id") @db.Uuid
+  points              Int
+  type                String
+  activityId          String?  @map("activity_id") @db.Uuid
+  attendanceId        String?  @unique @map("attendance_id") @db.Uuid
+  programAttendanceId String?  @unique @map("program_attendance_id") @db.Uuid
+  reversesId          String?  @unique @map("reverses_id") @db.Uuid
+  reason              String?
+  createdById         String?  @map("created_by") @db.Uuid
+  idempotencyKey      String?  @unique @map("idempotency_key")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  student        User                              @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  activity       Activity?                       @relation(fields: [activityId], references: [id])
-  eventOwnership PointTransactionEventOwnership?
-  attendance     Attendance?                     @relation(fields: [attendanceId], references: [id])
-  reverses       PointTransaction?               @relation("Reversal", fields: [reversesId], references: [id])
-  reversedBy     PointTransaction?               @relation("Reversal")
-  createdBy      User?                           @relation("PointTransactionCreatedBy", fields: [createdById], references: [id])
+  student           User                            @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  activity          Activity?                       @relation(fields: [activityId], references: [id])
+  eventOwnership    PointTransactionEventOwnership?
+  attendance        Attendance?                     @relation(fields: [attendanceId], references: [id])
+  programAttendance ProgramAttendance?              @relation(fields: [programAttendanceId], references: [id], onDelete: Restrict)
+  reverses          PointTransaction?               @relation("Reversal", fields: [reversesId], references: [id])
+  reversedBy        PointTransaction?               @relation("Reversal")
+  createdBy         User?                           @relation("PointTransactionCreatedBy", fields: [createdById], references: [id])
 
   @@index([studentId, createdAt(sort: Desc)])
   @@index([activityId])
@@ -721,8 +727,8 @@ model EventStudentPoints {
   totalPoints Int      @default(0) @map("total_points")
   updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  event   Event          @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  student User           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  student User  @relation(fields: [studentId], references: [id], onDelete: Restrict)
 
   @@id([eventId, studentId])
   @@index([eventId, totalPoints(sort: Desc)])

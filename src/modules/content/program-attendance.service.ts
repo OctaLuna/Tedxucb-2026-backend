@@ -4,13 +4,19 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AppException } from '../../common/exceptions/app.exception';
 import { resolveEventBySlug } from '../../common/events/resolve-event';
 import { EventAccessService } from '../event-access/event-access.service';
+import { LedgerService } from '../../common/ledger/ledger.service';
+import { isUniqueConstraintViolation } from '../../common/utils/prisma-error.util';
 
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{40,60}$/;
 
 @Injectable()
 export class ProgramAttendanceService {
-  constructor(private readonly prisma: PrismaService, private readonly eventAccess: EventAccessService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventAccess: EventAccessService,
+    private readonly ledger: LedgerService,
+  ) {}
 
   private assertBizWeek(eventSlug: string) {
     if (eventSlug !== 'innovation-week') throw new AppException(403, 'EVENT_SCOPE_DENIED', 'Esta integración de asistencia solo está habilitada para BizWeek.');
@@ -128,12 +134,77 @@ export class ProgramAttendanceService {
     await this.eventAccess.assertEventAccess(userId, item.event.slug);
     if (item.status === 'CANCELLED') throw new AppException(409, 'PROGRAM_ITEM_CANCELLED', 'Esta actividad fue cancelada y no admite confirmaciones.');
     if (item.status !== 'PUBLISHED' || item.event.status !== 'PUBLISHED') throw new AppException(404, 'PROGRAM_ITEM_NOT_AVAILABLE', 'Este elemento del cronograma no está disponible.');
-    const existing = await this.prisma.programAttendance.findUnique({ where: { userId_programItemId: { userId, programItemId: item.id } } });
-    if (existing) return { data: { attendance: existing, item: { id: item.id, title: item.title }, alreadyConfirmed: true } };
+    const existing = await this.prisma.programAttendance.findUnique({
+      where: { userId_programItemId: { userId, programItemId: item.id } },
+      include: { pointTransaction: { select: { points: true } } },
+    });
+    if (existing) {
+      const eventPoints = await this.prisma.eventStudentPoints.findUnique({
+        where: { eventId_studentId: { eventId: item.eventId, studentId: userId } },
+        select: { totalPoints: true },
+      });
+      return { data: {
+        attendance: existing,
+        item: { id: item.id, title: item.title },
+        alreadyConfirmed: true,
+        pointsAwarded: existing.pointTransaction?.points ?? 0,
+        newTotal: eventPoints?.totalPoints ?? 0,
+      } };
+    }
+    const awardKey = (activityId: string) => `checkin:${activityId}:${userId}`;
     try {
-      const attendance = await this.prisma.programAttendance.create({ data: { userId, programItemId: item.id, method: 'NFC_LINK' } });
-      return { data: { attendance, item: { id: item.id, title: item.title }, alreadyConfirmed: false } };
+      const result = await this.prisma.$transaction(async (tx) => {
+        const attendance = await tx.programAttendance.create({ data: { userId, programItemId: item.id, method: 'NFC_LINK' } });
+        const activity = await tx.activity.findUnique({ where: { programItemId: item.id } });
+        let pointsAwarded = 0;
+        if (activity && activity.pointsValue > 0) {
+          const idempotencyKey = awardKey(activity.id);
+          const priorMovement = await tx.pointTransaction.findUnique({ where: { idempotencyKey }, select: { id: true } });
+          if (!priorMovement) {
+            const movement = await this.ledger.recordMovement(tx, {
+              eventId: item.eventId,
+              studentId: userId,
+              points: activity.pointsValue,
+              type: 'ACTIVITY',
+              activityId: activity.id,
+              programAttendanceId: attendance.id,
+              reason: 'Asistencia confirmada al elemento del cronograma de Innovation Week',
+              idempotencyKey,
+            });
+            pointsAwarded = movement.points;
+          }
+        }
+        const eventPoints = await tx.eventStudentPoints.findUnique({
+          where: { eventId_studentId: { eventId: item.eventId, studentId: userId } },
+          select: { totalPoints: true },
+        });
+        return { attendance, pointsAwarded, newTotal: eventPoints?.totalPoints ?? 0 };
+      });
+      return { data: {
+        attendance: result.attendance,
+        item: { id: item.id, title: item.title },
+        alreadyConfirmed: false,
+        pointsAwarded: result.pointsAwarded,
+        newTotal: result.newTotal,
+      } };
     } catch (error) {
+      if (isUniqueConstraintViolation(error, 'point_transactions_idempotency_key_key')) {
+        const priorAttendance = await this.prisma.programAttendance.findUnique({
+          where: { userId_programItemId: { userId, programItemId: item.id } },
+          include: { pointTransaction: { select: { points: true } } },
+        });
+        const eventPoints = await this.prisma.eventStudentPoints.findUnique({
+          where: { eventId_studentId: { eventId: item.eventId, studentId: userId } },
+          select: { totalPoints: true },
+        });
+        if (priorAttendance) return { data: {
+          attendance: priorAttendance,
+          item: { id: item.id, title: item.title },
+          alreadyConfirmed: true,
+          pointsAwarded: priorAttendance.pointTransaction?.points ?? 0,
+          newTotal: eventPoints?.totalPoints ?? 0,
+        } };
+      }
       if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
         const attendance = await this.prisma.programAttendance.findUnique({ where: { userId_programItemId: { userId, programItemId: item.id } } });
         if (attendance) return { data: { attendance, item: { id: item.id, title: item.title }, alreadyConfirmed: true } };

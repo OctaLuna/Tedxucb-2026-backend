@@ -105,6 +105,7 @@ export class CheckinService {
     }
 
     const idempotencyKey = `checkin:${input.activityId}:${input.studentId}`;
+    const idempotentActivityAward = !activity.allowMultipleCheckins || Boolean(activity.programItemId);
 
     let attendance: Attendance;
     let transaction: PointTransaction;
@@ -143,7 +144,7 @@ export class CheckinService {
           // allowMultipleCheckins (el caso real, RF-323 resuelto sin
           // actividades masivas) la protección de idempotencia sigue
           // exactamente como la documenta la skill motor-de-puntos.
-          idempotencyKey: activity.allowMultipleCheckins ? undefined : idempotencyKey,
+          idempotencyKey: idempotentActivityAward ? idempotencyKey : undefined,
         });
 
         const eventPoints = await tx.eventStudentPoints.findUnique({
@@ -166,6 +167,17 @@ export class CheckinService {
           pointsAwarded: prior?.pointTransaction?.points,
           validatedBy: prior?.validatedBy?.fullName,
         });
+      }
+      if (isUniqueConstraintViolation(error, 'point_transactions_idempotency_key_key')) {
+        const priorMovement = await this.prisma.pointTransaction.findUnique({
+          where: { idempotencyKey },
+          select: { points: true },
+        });
+        if (priorMovement) {
+          throw new AppException(409, 'ALREADY_CHECKED_IN', 'Este alumno ya fue registrado en esta actividad.', {
+            pointsAwarded: priorMovement.points,
+          });
+        }
       }
       throw error;
     }

@@ -42,3 +42,7 @@ independiente.
 El contrato de Avatar 2D solo transporta y guarda la identidad/ilustración del
 participante. No almacena ni calcula puntos; Mi perfil los presenta leyendo el
 estado de la cuenta en Innovation Week.
+
+## Registro NFC del cronograma
+
+Las confirmaciones NFC de `program_attendances` también otorgan puntos en Innovation Week. La migración `20261109180000_award_points_from_program_attendances` enlaza las actividades puntuables con elementos del mismo evento y título mediante `activities.program_item_id`, asocia la asistencia NFC al ledger y completa abonos históricos faltantes. Si el usuario ya obtuvo puntos por la asistencia operativa de la misma actividad, el backfill y el check-in NFC no le otorgan puntos duplicados. El alta NFC y el movimiento futuro se guardan en la misma transacción. La elegibilidad se rige por el estado publicado del elemento del cronograma, aunque la actividad de configuración permanezca en `DRAFT`.
