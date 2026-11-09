@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -11,6 +11,7 @@ import { UpdateEventProgramItemDto } from './dto/update-event-program-item.dto';
 import { EventProgramService } from './event-program.service';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { RateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
+import { ProgramAttendanceService } from './program-attendance.service';
 
 @ApiTags('event-program')
 @ApiBearerAuth()
@@ -18,7 +19,7 @@ import { RateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
 @UseGuards(JwtAuthGuard, RolesGuard, EventAccessGuard)
 @Roles('ADMIN')
 export class EventProgramController {
-  constructor(private readonly eventProgram: EventProgramService) {}
+  constructor(private readonly eventProgram: EventProgramService, private readonly attendance: ProgramAttendanceService) {}
 
   @Get()
   @ApiQuery({ name: 'eventSlug', required: false, example: 'tedxucb' })
@@ -37,6 +38,25 @@ export class EventProgramController {
   @ApiQuery({ name: 'eventSlug', required: false, example: 'tedxucb' })
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateEventProgramItemDto, @CurrentUser() actor: AccessTokenPayload, @Query('eventSlug') eventSlug = 'tedxucb') {
     return this.eventProgram.update(id, dto, actor.sub, eventSlug);
+  }
+
+  @Get(':id/attendance')
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  attendanceList(@Param('id', ParseUUIDPipe) id: string, @Query('eventSlug') eventSlug = 'tedxucb') {
+    return this.attendance.adminList(id, eventSlug);
+  }
+
+  @Post(':id/attendance-link')
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  createAttendanceLink(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AccessTokenPayload, @Query('eventSlug') eventSlug = 'tedxucb') {
+    return this.attendance.createLink(id, actor.sub, eventSlug);
+  }
+
+  @Delete(':id/attendance-link')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
+  async revokeAttendanceLink(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AccessTokenPayload, @Query('eventSlug') eventSlug = 'tedxucb') {
+    await this.attendance.revokeLink(id, actor.sub, eventSlug);
   }
 }
 
