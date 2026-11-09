@@ -20,7 +20,7 @@ export class ProgramAttendanceService {
     this.assertBizWeek(eventSlug);
     const event = await resolveEventBySlug(this.prisma, eventSlug, true);
     const item = await this.prisma.eventProgramItem.findFirst({ where: { id: programItemId, eventId: event.id } });
-    if (!item || item.status !== 'PUBLISHED' || item.type !== 'TALK') throw new AppException(404, 'PROGRAM_ITEM_NOT_AVAILABLE', 'Solo se pueden generar enlaces para charlas publicadas.');
+    if (!item || item.status !== 'PUBLISHED') throw new AppException(404, 'PROGRAM_ITEM_NOT_AVAILABLE', 'Solo se pueden generar enlaces para elementos publicados del cronograma.');
     const token = randomBytes(32).toString('base64url');
     const tokenHash = hashToken(token);
     const link = await this.prisma.$transaction(async (tx) => {
@@ -37,7 +37,7 @@ export class ProgramAttendanceService {
     this.assertBizWeek(eventSlug);
     const event = await resolveEventBySlug(this.prisma, eventSlug);
     const item = await this.prisma.eventProgramItem.findFirst({ where: { id: programItemId, eventId: event.id }, select: { id: true } });
-    if (!item) throw new AppException(404, 'PROGRAM_ITEM_NOT_FOUND', 'Charla no encontrada.');
+    if (!item) throw new AppException(404, 'PROGRAM_ITEM_NOT_FOUND', 'Elemento del cronograma no encontrado.');
     return this.prisma.$transaction(async (tx) => {
       const result = await tx.programAttendanceLink.updateMany({ where: { programItemId, revokedAt: null }, data: { revokedAt: new Date() } });
       await tx.auditLog.create({ data: { actorId, action: 'PROGRAM_ATTENDANCE_LINK_REVOKED', entityType: 'event_program_item', entityId: programItemId, detail: { eventId: event.id, revokedLinks: result.count } } });
@@ -49,7 +49,7 @@ export class ProgramAttendanceService {
     this.assertBizWeek(eventSlug);
     const event = await resolveEventBySlug(this.prisma, eventSlug);
     const item = await this.prisma.eventProgramItem.findFirst({ where: { id: programItemId, eventId: event.id }, select: { id: true, title: true, status: true, startsAt: true, endsAt: true } });
-    if (!item) throw new AppException(404, 'PROGRAM_ITEM_NOT_FOUND', 'Charla no encontrada.');
+    if (!item) throw new AppException(404, 'PROGRAM_ITEM_NOT_FOUND', 'Elemento del cronograma no encontrado.');
     const [link, enrollments, attendances] = await Promise.all([
       this.prisma.programAttendanceLink.findFirst({ where: { programItemId, revokedAt: null }, select: { id: true, createdAt: true } }),
       this.prisma.programEnrollment.findMany({ where: { programItemId }, select: { createdAt: true, user: { select: { id: true, nickname: true, fullName: true, email: true } } } }),
@@ -84,7 +84,7 @@ export class ProgramAttendanceService {
     const event = await resolveEventBySlug(this.prisma, eventSlug, true);
     await this.eventAccess.assertEventAccess(userId, eventSlug);
     const items = await this.prisma.eventProgramItem.findMany({
-      where: { eventId: event.id, type: 'TALK', status: { in: ['PUBLISHED', 'CANCELLED'] } },
+      where: { eventId: event.id, status: { in: ['PUBLISHED', 'CANCELLED'] } },
       orderBy: [{ startsAt: 'asc' }, { displayOrder: 'asc' }],
       select: {
         id: true, title: true, description: true, type: true, status: true, startsAt: true, endsAt: true,
@@ -107,10 +107,10 @@ export class ProgramAttendanceService {
     if (!link) throw new AppException(404, 'ATTENDANCE_LINK_INVALID', 'El enlace de asistencia no es válido.');
     if (link.revokedAt) throw new AppException(410, 'ATTENDANCE_LINK_REVOKED', 'Este enlace fue revocado. Solicita al equipo organizador uno vigente.');
     const item = link.programItem;
-    if (item.event.slug !== 'innovation-week' || item.type !== 'TALK') throw new AppException(404, 'ATTENDANCE_LINK_INVALID', 'El enlace de asistencia no es válido.');
+    if (item.event.slug !== 'innovation-week') throw new AppException(404, 'ATTENDANCE_LINK_INVALID', 'El enlace de asistencia no es válido.');
     await this.eventAccess.assertEventAccess(userId, item.event.slug);
-    if (item.status === 'CANCELLED') throw new AppException(409, 'PROGRAM_ITEM_CANCELLED', 'La charla fue cancelada y no admite confirmaciones.');
-    if (item.status !== 'PUBLISHED' || item.event.status !== 'PUBLISHED') throw new AppException(404, 'PROGRAM_ITEM_NOT_AVAILABLE', 'La charla no está disponible.');
+    if (item.status === 'CANCELLED') throw new AppException(409, 'PROGRAM_ITEM_CANCELLED', 'Esta actividad fue cancelada y no admite confirmaciones.');
+    if (item.status !== 'PUBLISHED' || item.event.status !== 'PUBLISHED') throw new AppException(404, 'PROGRAM_ITEM_NOT_AVAILABLE', 'Este elemento del cronograma no está disponible.');
     const existing = await this.prisma.programAttendance.findUnique({ where: { userId_programItemId: { userId, programItemId: item.id } }, select: { checkedInAt: true } });
     return { data: { item: { id: item.id, title: item.title, startsAt: item.startsAt, endsAt: item.endsAt }, alreadyConfirmed: Boolean(existing), checkedInAt: existing?.checkedInAt ?? null } };
   }
@@ -125,10 +125,9 @@ export class ProgramAttendanceService {
     if (link.revokedAt) throw new AppException(410, 'ATTENDANCE_LINK_REVOKED', 'Este enlace fue revocado. Solicita al equipo organizador uno vigente.');
     const item = link.programItem;
     if (item.event.slug !== 'innovation-week') throw new AppException(404, 'ATTENDANCE_LINK_INVALID', 'El enlace de asistencia no es válido.');
-    if (item.type !== 'TALK') throw new AppException(404, 'PROGRAM_ITEM_NOT_AVAILABLE', 'El enlace no corresponde a una charla.');
     await this.eventAccess.assertEventAccess(userId, item.event.slug);
-    if (item.status === 'CANCELLED') throw new AppException(409, 'PROGRAM_ITEM_CANCELLED', 'La charla fue cancelada y no admite confirmaciones.');
-    if (item.status !== 'PUBLISHED' || item.event.status !== 'PUBLISHED') throw new AppException(404, 'PROGRAM_ITEM_NOT_AVAILABLE', 'La charla no está disponible.');
+    if (item.status === 'CANCELLED') throw new AppException(409, 'PROGRAM_ITEM_CANCELLED', 'Esta actividad fue cancelada y no admite confirmaciones.');
+    if (item.status !== 'PUBLISHED' || item.event.status !== 'PUBLISHED') throw new AppException(404, 'PROGRAM_ITEM_NOT_AVAILABLE', 'Este elemento del cronograma no está disponible.');
     const existing = await this.prisma.programAttendance.findUnique({ where: { userId_programItemId: { userId, programItemId: item.id } } });
     if (existing) return { data: { attendance: existing, item: { id: item.id, title: item.title }, alreadyConfirmed: true } };
     try {
