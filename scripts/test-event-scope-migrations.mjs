@@ -30,6 +30,16 @@ function databaseUrl(base, databaseName) {
   return url.toString();
 }
 
+async function legacyLedgerSnapshot(client) {
+  // Compare the immutable ledger values across migrations while ignoring the
+  // schedule-attendance reference column introduced by the new migration.
+  const result = await client.query("SELECT to_jsonb(pt) - 'program_attendance_id' AS row FROM point_transactions pt ORDER BY id");
+  return {
+    hash: createHash('sha256').update(JSON.stringify(result.rows.map((item) => item.row))).digest('hex'),
+    rows: result.rows.length,
+  };
+}
+
 function runPrisma(configPath, args, url) {
   const result = spawnSync(process.execPath, [prismaCli, ...args, '--config', configPath], {
     cwd: root,
@@ -109,10 +119,9 @@ async function createFixture(client, ids) {
     await client.query("INSERT INTO point_transactions(id,student_id,points,type,activity_id,reason,created_by) VALUES($1,$2,10,'ACTIVITY',$3,NULL,$4),($5,$2,3,'ADJUSTMENT',NULL,'legacy manual adjustment',$4)", [ids.pointActivity, ids.student, ids.activity, ids.admin, ids.pointAdjustment]);
     await client.query("INSERT INTO selection_runs(id,event_id,executed_by,student_capacity_snapshot) VALUES($1,$2,$3,1)", [ids.run, ids.event, ids.admin]);
     await client.query("INSERT INTO selections(id,run_id,source,student_id,points_at_selection,rank_at_selection,entry_code) VALUES($1,$2,'RANKING',$3,13,1,'MIG-FIXTURE-ENTRY')", [ids.selection, ids.run, ids.student]);
-    const ledger = await client.query('SELECT * FROM point_transactions ORDER BY id');
-    const ledgerHash = createHash('sha256').update(JSON.stringify(ledger.rows)).digest('hex');
+    const ledger = await legacyLedgerSnapshot(client);
     await client.query('COMMIT');
-    return { ledgerHash, ledgerRows: ledger.rows.length };
+    return { ledgerHash: ledger.hash, ledgerRows: ledger.rows };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -139,9 +148,8 @@ async function verifyRestoredBaseline(client, ids, snapshot) {
   for (const [field, value] of Object.entries(expected)) {
     if (Number(row[field]) !== value) throw new Error(`Sanitized dump did not preserve the expected ${field} count or relation.`);
   }
-  const ledger = await client.query('SELECT * FROM point_transactions ORDER BY id');
-  const ledgerHash = createHash('sha256').update(JSON.stringify(ledger.rows)).digest('hex');
-  if (ledgerHash !== snapshot.ledgerHash) throw new Error('Sanitized dump changed the immutable legacy ledger snapshot.');
+  const ledger = await legacyLedgerSnapshot(client);
+  if (ledger.hash !== snapshot.ledgerHash) throw new Error('Sanitized dump changed the immutable legacy ledger snapshot.');
 }
 
 async function expectRejected(client, sql, params, expected) {
@@ -174,9 +182,8 @@ async function verifyFixture(client, ids, snapshot) {
   }
   if (Number(row.owners) !== snapshot.ledgerRows || Number(row.projected_points) !== 13) throw new Error('Ledger ownership/projection backfill is incomplete.');
 
-  const ledger = await client.query('SELECT * FROM point_transactions ORDER BY id');
-  const ledgerHash = createHash('sha256').update(JSON.stringify(ledger.rows)).digest('hex');
-  if (ledger.rows.length !== snapshot.ledgerRows || ledgerHash !== snapshot.ledgerHash) throw new Error('Migration changed legacy point_transactions rows.');
+  const ledger = await legacyLedgerSnapshot(client);
+  if (ledger.rows !== snapshot.ledgerRows || ledger.hash !== snapshot.ledgerHash) throw new Error('Migration changed legacy point_transactions rows.');
   const ownership = await client.query('SELECT point_transaction_id,event_id FROM point_transaction_event_ownership');
   if (ownership.rows.length !== snapshot.ledgerRows || ownership.rows.some((item) => item.event_id !== ids.event)) throw new Error('Legacy ledger ownership is not attributed to TEDx.');
 
@@ -200,7 +207,7 @@ async function verifyFixture(client, ids, snapshot) {
     (SELECT count(*) FROM activities WHERE event_id IS NULL) +
     (SELECT count(*) FROM selections WHERE event_id IS NULL) AS scoped_orphans`);
   if (Number(orphanCheck.rows[0].scoped_orphans) !== 0) throw new Error('Scoped legacy data contains orphan rows.');
-  return { events: 2, tedxStartsAt, legacyRowsBackfilled: 7, ledgerRows: ledger.rows.length, ledgerHashUnchanged: true, crossEventConstraints: 'passed', scopedOrphans: 0, projectedPoints: Number(row.projected_points) };
+  return { events: 2, tedxStartsAt, legacyRowsBackfilled: 7, ledgerRows: ledger.rows, ledgerHashUnchanged: true, crossEventConstraints: 'passed', scopedOrphans: 0, projectedPoints: Number(row.projected_points) };
 }
 
 async function main() {
@@ -212,20 +219,7 @@ async function main() {
   const safeDatabaseName = /^ted_migration_fixture_[0-9]+_[0-9]+$/.test(databaseName);
   const safeAmbiguityDatabaseName = /^ted_migration_collision_[0-9]+_[0-9]+$/.test(ambiguityDatabaseName);
   if (!safeSourceDatabaseName || !safeDatabaseName || !safeAmbiguityDatabaseName) throw new Error('Generated fixture database name is invalid.');
-  let cleanupInProgress = false;
-  const createClient = (connectionString, label) => {
-    const client = new Client({ connectionString });
-    client.on('error', (error) => {
-      if (cleanupInProgress && error.code === '57P01') {
-        process.stderr.write(`Fixture cleanup closed a remaining ${label} PostgreSQL session.\n`);
-        return;
-      }
-      process.stderr.write(`${label} PostgreSQL client error: ${error.message}\n`);
-      process.exitCode = 1;
-    });
-    return client;
-  };
-  const adminClient = createClient(baseUrl.toString(), 'fixture admin');
+  const adminClient = new Client({ connectionString: baseUrl.toString() });
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'ted-event-scope-migration-'));
   const configPath = path.join(root, `.prisma-migration-fixture-${process.pid}.tmp.config.ts`);
   const ambiguityConfigPath = path.join(root, `.prisma-migration-collision-${process.pid}.tmp.config.ts`);
@@ -256,7 +250,7 @@ async function main() {
     runPrisma(configPath, ['migrate', 'deploy'], sourceUrl);
 
     const ids = Object.fromEntries(['event','admin','student','faculty','career','content','speaker','application','category','activity','pointActivity','pointAdjustment','run','selection'].map((key, index) => [key, `21000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`]));
-    const fixtureClient = createClient(sourceUrl, 'source fixture');
+    const fixtureClient = new Client({ connectionString: sourceUrl });
     await fixtureClient.connect();
     const snapshot = await createFixture(fixtureClient, ids);
     await fixtureClient.end();
@@ -268,11 +262,11 @@ async function main() {
     const fixtureUrl = databaseUrl(baseUrl, databaseName);
     const container = postgresTestContainer();
     await dumpAndRestore(container, sourceDatabaseName, databaseName, tempRoot);
-    const sourceSnapshotClient = createClient(sourceUrl, 'source snapshot');
+    const sourceSnapshotClient = new Client({ connectionString: sourceUrl });
     await sourceSnapshotClient.connect();
     await verifyRestoredBaseline(sourceSnapshotClient, ids, snapshot);
     await sourceSnapshotClient.end();
-    const restoredSnapshotClient = createClient(fixtureUrl, 'restored snapshot');
+    const restoredSnapshotClient = new Client({ connectionString: fixtureUrl });
     await restoredSnapshotClient.connect();
     await verifyRestoredBaseline(restoredSnapshotClient, ids, snapshot);
     await restoredSnapshotClient.end();
@@ -283,12 +277,12 @@ async function main() {
     const statusLog = runPrisma(configPath, ['migrate', 'status'], fixtureUrl);
     if (!statusLog.includes('Database schema is up to date!')) throw new Error('Fixture database has pending migrations.');
 
-    const verifyClient = createClient(fixtureUrl, 'migration verification');
+    const verifyClient = new Client({ connectionString: fixtureUrl });
     await verifyClient.connect();
     const result = await verifyFixture(verifyClient, ids, snapshot);
     await verifyClient.end();
 
-    const preservedSourceClient = createClient(sourceUrl, 'preserved source snapshot');
+    const preservedSourceClient = new Client({ connectionString: sourceUrl });
     await preservedSourceClient.connect();
     await verifyRestoredBaseline(preservedSourceClient, ids, snapshot);
     await preservedSourceClient.end();
@@ -305,7 +299,7 @@ async function main() {
     await writeFile(ambiguityConfigPath, ambiguityConfig, { encoding: 'utf8', flag: 'wx' });
     const ambiguityUrl = databaseUrl(baseUrl, ambiguityDatabaseName);
     runPrisma(ambiguityConfigPath, ['migrate', 'deploy'], ambiguityUrl);
-    const ambiguityClient = createClient(ambiguityUrl, 'ambiguity fixture');
+    const ambiguityClient = new Client({ connectionString: ambiguityUrl });
     await ambiguityClient.connect();
     await ambiguityClient.query("INSERT INTO events(id,name,starts_at,status,capacity) VALUES ('22000000-0000-4000-8000-000000000001','TEDxUCB','2026-11-09T14:00:00Z','PUBLISHED',100),('22000000-0000-4000-8000-000000000002','TEDxUCB','2026-11-10T14:00:00Z','DRAFT',100)");
     const seededAmbiguousRows = await ambiguityClient.query("SELECT count(*) AS total,count(*) FILTER (WHERE slug IS NULL) AS without_slug FROM events WHERE name='TEDxUCB'");
@@ -313,7 +307,7 @@ async function main() {
     await ambiguityClient.end();
     await copyMigrationRange(migrations, ambiguityMigrationRoot, (name) => name >= baselineEnd && name <= '20261023050000_backfill_legacy_event_slug');
     expectPrismaFailure(ambiguityConfigPath, ['migrate', 'deploy'], ambiguityUrl, 'found 2 legacy TEDxUCB events');
-    const ambiguityVerifyClient = createClient(ambiguityUrl, 'ambiguity verification');
+    const ambiguityVerifyClient = new Client({ connectionString: ambiguityUrl });
     await ambiguityVerifyClient.connect();
     const unchangedAmbiguousRows = await ambiguityVerifyClient.query("SELECT count(*) AS total, count(*) FILTER (WHERE slug IS NULL) AS without_slug FROM events WHERE name='TEDxUCB'");
     await ambiguityVerifyClient.end();
@@ -322,7 +316,6 @@ async function main() {
     }
     process.stdout.write(`${JSON.stringify({ database: databaseName, baselineMigrations: baselineMigrationCount, totalMigrations: migrationNames.length, sanitizedDumpRestored: true, baselineRecoveryCopyPreserved: true, ambiguousLegacyRowsPreserved: true, ...result })}\n`);
   } finally {
-    cleanupInProgress = true;
     await rm(configPath, { force: true });
     await rm(ambiguityConfigPath, { force: true });
     for (const [name, created] of [[sourceDatabaseName, sourceDatabaseCreated], [databaseName, databaseCreated], [ambiguityDatabaseName, ambiguityDatabaseCreated]]) {
