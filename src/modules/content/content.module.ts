@@ -11,12 +11,14 @@ import { EventProgramController, PublicEventProgramController } from './event-pr
 import { EventProgramService } from './event-program.service';
 import { EventLiveController, PublicEventLiveController } from './event-live.controller';
 import { EventLiveService } from './event-live.service';
+import { ProgramAttendanceController } from './program-attendance.controller';
+import { ProgramAttendanceService } from './program-attendance.service';
 import { ProgramEnrollmentController } from './program-enrollment.controller';
 import { ProgramEnrollmentService } from './program-enrollment.service';
 
 @Module({
   imports: [AuthModule, UploadModule, EventAccessModule],
-  controllers: [PublicEventController, EventsController, ContentBlocksController, EventProgramController, PublicEventProgramController, EventLiveController, PublicEventLiveController, ProgramEnrollmentController],
-  providers: [EventsService, ContentBlocksService, EventProgramService, EventLiveService, ProgramEnrollmentService],
+  controllers: [PublicEventController, EventsController, ContentBlocksController, EventProgramController, PublicEventProgramController, EventLiveController, PublicEventLiveController, ProgramEnrollmentController, ProgramAttendanceController],
+  providers: [EventsService, ContentBlocksService, EventProgramService, EventLiveService, ProgramEnrollmentService, ProgramAttendanceService],
 })
 export class ContentModule {}
