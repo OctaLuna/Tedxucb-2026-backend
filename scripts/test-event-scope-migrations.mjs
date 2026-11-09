@@ -212,7 +212,20 @@ async function main() {
   const safeDatabaseName = /^ted_migration_fixture_[0-9]+_[0-9]+$/.test(databaseName);
   const safeAmbiguityDatabaseName = /^ted_migration_collision_[0-9]+_[0-9]+$/.test(ambiguityDatabaseName);
   if (!safeSourceDatabaseName || !safeDatabaseName || !safeAmbiguityDatabaseName) throw new Error('Generated fixture database name is invalid.');
-  const adminClient = new Client({ connectionString: baseUrl.toString() });
+  let cleanupInProgress = false;
+  const createClient = (connectionString, label) => {
+    const client = new Client({ connectionString });
+    client.on('error', (error) => {
+      if (cleanupInProgress && error.code === '57P01') {
+        process.stderr.write(`Fixture cleanup closed a remaining ${label} PostgreSQL session.\n`);
+        return;
+      }
+      process.stderr.write(`${label} PostgreSQL client error: ${error.message}\n`);
+      process.exitCode = 1;
+    });
+    return client;
+  };
+  const adminClient = createClient(baseUrl.toString(), 'fixture admin');
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'ted-event-scope-migration-'));
   const configPath = path.join(root, `.prisma-migration-fixture-${process.pid}.tmp.config.ts`);
   const ambiguityConfigPath = path.join(root, `.prisma-migration-collision-${process.pid}.tmp.config.ts`);
@@ -243,7 +256,7 @@ async function main() {
     runPrisma(configPath, ['migrate', 'deploy'], sourceUrl);
 
     const ids = Object.fromEntries(['event','admin','student','faculty','career','content','speaker','application','category','activity','pointActivity','pointAdjustment','run','selection'].map((key, index) => [key, `21000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`]));
-    const fixtureClient = new Client({ connectionString: sourceUrl });
+    const fixtureClient = createClient(sourceUrl, 'source fixture');
     await fixtureClient.connect();
     const snapshot = await createFixture(fixtureClient, ids);
     await fixtureClient.end();
@@ -255,11 +268,11 @@ async function main() {
     const fixtureUrl = databaseUrl(baseUrl, databaseName);
     const container = postgresTestContainer();
     await dumpAndRestore(container, sourceDatabaseName, databaseName, tempRoot);
-    const sourceSnapshotClient = new Client({ connectionString: sourceUrl });
+    const sourceSnapshotClient = createClient(sourceUrl, 'source snapshot');
     await sourceSnapshotClient.connect();
     await verifyRestoredBaseline(sourceSnapshotClient, ids, snapshot);
     await sourceSnapshotClient.end();
-    const restoredSnapshotClient = new Client({ connectionString: fixtureUrl });
+    const restoredSnapshotClient = createClient(fixtureUrl, 'restored snapshot');
     await restoredSnapshotClient.connect();
     await verifyRestoredBaseline(restoredSnapshotClient, ids, snapshot);
     await restoredSnapshotClient.end();
@@ -270,12 +283,12 @@ async function main() {
     const statusLog = runPrisma(configPath, ['migrate', 'status'], fixtureUrl);
     if (!statusLog.includes('Database schema is up to date!')) throw new Error('Fixture database has pending migrations.');
 
-    const verifyClient = new Client({ connectionString: fixtureUrl });
+    const verifyClient = createClient(fixtureUrl, 'migration verification');
     await verifyClient.connect();
     const result = await verifyFixture(verifyClient, ids, snapshot);
     await verifyClient.end();
 
-    const preservedSourceClient = new Client({ connectionString: sourceUrl });
+    const preservedSourceClient = createClient(sourceUrl, 'preserved source snapshot');
     await preservedSourceClient.connect();
     await verifyRestoredBaseline(preservedSourceClient, ids, snapshot);
     await preservedSourceClient.end();
@@ -292,7 +305,7 @@ async function main() {
     await writeFile(ambiguityConfigPath, ambiguityConfig, { encoding: 'utf8', flag: 'wx' });
     const ambiguityUrl = databaseUrl(baseUrl, ambiguityDatabaseName);
     runPrisma(ambiguityConfigPath, ['migrate', 'deploy'], ambiguityUrl);
-    const ambiguityClient = new Client({ connectionString: ambiguityUrl });
+    const ambiguityClient = createClient(ambiguityUrl, 'ambiguity fixture');
     await ambiguityClient.connect();
     await ambiguityClient.query("INSERT INTO events(id,name,starts_at,status,capacity) VALUES ('22000000-0000-4000-8000-000000000001','TEDxUCB','2026-11-09T14:00:00Z','PUBLISHED',100),('22000000-0000-4000-8000-000000000002','TEDxUCB','2026-11-10T14:00:00Z','DRAFT',100)");
     const seededAmbiguousRows = await ambiguityClient.query("SELECT count(*) AS total,count(*) FILTER (WHERE slug IS NULL) AS without_slug FROM events WHERE name='TEDxUCB'");
@@ -300,7 +313,7 @@ async function main() {
     await ambiguityClient.end();
     await copyMigrationRange(migrations, ambiguityMigrationRoot, (name) => name >= baselineEnd && name <= '20261023050000_backfill_legacy_event_slug');
     expectPrismaFailure(ambiguityConfigPath, ['migrate', 'deploy'], ambiguityUrl, 'found 2 legacy TEDxUCB events');
-    const ambiguityVerifyClient = new Client({ connectionString: ambiguityUrl });
+    const ambiguityVerifyClient = createClient(ambiguityUrl, 'ambiguity verification');
     await ambiguityVerifyClient.connect();
     const unchangedAmbiguousRows = await ambiguityVerifyClient.query("SELECT count(*) AS total, count(*) FILTER (WHERE slug IS NULL) AS without_slug FROM events WHERE name='TEDxUCB'");
     await ambiguityVerifyClient.end();
@@ -309,6 +322,7 @@ async function main() {
     }
     process.stdout.write(`${JSON.stringify({ database: databaseName, baselineMigrations: baselineMigrationCount, totalMigrations: migrationNames.length, sanitizedDumpRestored: true, baselineRecoveryCopyPreserved: true, ambiguousLegacyRowsPreserved: true, ...result })}\n`);
   } finally {
+    cleanupInProgress = true;
     await rm(configPath, { force: true });
     await rm(ambiguityConfigPath, { force: true });
     for (const [name, created] of [[sourceDatabaseName, sourceDatabaseCreated], [databaseName, databaseCreated], [ambiguityDatabaseName, ambiguityDatabaseCreated]]) {
