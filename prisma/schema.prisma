@@ -37,6 +37,9 @@ model User {
   refreshTokens                 RefreshToken[]
   auditLogs                     AuditLog[]
   studentProfile                StudentProfile?
+  attendances                   Attendance[]
+  pointTransactions             PointTransaction[]
+  eventPoints                   EventStudentPoints[]
   resolvedCorrectionRequests    CorrectionRequest[]     @relation("CorrectionRequestResolvedBy")
   updatedEvents                 Event[]
   updatedContentBlocks          ContentBlock[]
@@ -215,9 +218,6 @@ model StudentProfile {
   career             Career               @relation(fields: [careerId], references: [id])
   consentAcceptances ConsentAcceptance[]
   correctionRequests CorrectionRequest[]
-  attendances        Attendance[]
-  pointTransactions  PointTransaction[]
-  eventPoints        EventStudentPoints[]
   selections         Selection[]
 
   @@index([totalPoints(sort: Desc)])
@@ -661,7 +661,7 @@ model Attendance {
   checkedInAt     DateTime @default(now()) @map("checked_in_at") @db.Timestamptz
 
   activity         Activity          @relation(fields: [activityId], references: [id])
-  student          StudentProfile    @relation(fields: [studentId], references: [userId])
+  student          User              @relation(fields: [studentId], references: [id], onDelete: Restrict)
   validatedBy      User?             @relation("AttendanceValidatedBy", fields: [validatedById], references: [id])
   pointTransaction PointTransaction?
 
@@ -686,7 +686,7 @@ model PointTransaction {
   idempotencyKey String?  @unique @map("idempotency_key")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  student        StudentProfile                  @relation(fields: [studentId], references: [userId])
+  student        User                              @relation(fields: [studentId], references: [id], onDelete: Restrict)
   activity       Activity?                       @relation(fields: [activityId], references: [id])
   eventOwnership PointTransactionEventOwnership?
   attendance     Attendance?                     @relation(fields: [attendanceId], references: [id])
@@ -722,7 +722,7 @@ model EventStudentPoints {
   updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
   event   Event          @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  student StudentProfile @relation(fields: [studentId], references: [userId], onDelete: Restrict)
+  student User           @relation(fields: [studentId], references: [id], onDelete: Restrict)
 
   @@id([eventId, studentId])
   @@index([eventId, totalPoints(sort: Desc)])

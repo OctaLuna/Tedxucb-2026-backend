@@ -73,9 +73,9 @@ export class CheckinService {
     // Paso 1: identidad del alumno -- RF-122, rechaza cuenta sin verificar.
     const student = await this.prisma.user.findUnique({
       where: { id: input.studentId },
-      include: { studentProfile: { include: { career: true } } },
+      include: { roles: true, studentProfile: { include: { career: true } } },
     });
-    if (!student || !student.studentProfile) {
+    if (!student || !student.roles.some(({ role }) => role === 'ALUMNO')) {
       throw new AppException(404, 'NOT_FOUND', 'Alumno no encontrado.');
     }
     if (student.status !== 'ACTIVE') {
@@ -108,6 +108,7 @@ export class CheckinService {
 
     let attendance: Attendance;
     let transaction: PointTransaction;
+    let newTotal: number;
     try {
       const result = await this.prisma.$transaction(async (tx) => {
         // Paso 3: INSERT attendances -- multipleAllowed copiado AHORA, no
@@ -145,10 +146,15 @@ export class CheckinService {
           idempotencyKey: activity.allowMultipleCheckins ? undefined : idempotencyKey,
         });
 
-        return { attendance: newAttendance, transaction: newTransaction };
+        const eventPoints = await tx.eventStudentPoints.findUnique({
+          where: { eventId_studentId: { eventId: activity.eventId, studentId: input.studentId } },
+          select: { totalPoints: true },
+        });
+        return { attendance: newAttendance, transaction: newTransaction, newTotal: eventPoints?.totalPoints ?? 0 };
       });
       attendance = result.attendance;
       transaction = result.transaction;
+      newTotal = result.newTotal;
     } catch (error) {
       if (isUniqueConstraintViolation(error, 'one_attendance_per_activity')) {
         const prior = await this.prisma.attendance.findFirst({
@@ -174,8 +180,6 @@ export class CheckinService {
       })
       .catch((error: Error) => this.logger.warn(`No se pudo encolar la notificación de check-in: ${error.message}`));
 
-    const updatedStudent = await this.prisma.studentProfile.findUniqueOrThrow({ where: { userId: input.studentId } });
-
     this.logger.log(`check-in ${input.method} completado en ${Date.now() - startedAt}ms (actividad ${input.activityId})`);
 
     return {
@@ -183,12 +187,13 @@ export class CheckinService {
       student: {
         id: student.id,
         fullName: student.fullName,
-        studentCode: student.studentProfile.studentCode,
-        avatarUrl: student.studentProfile.avatarUrl,
-        career: student.studentProfile.career.name,
+        nickname: student.nickname,
+        studentCode: student.studentProfile?.studentCode ?? null,
+        avatarUrl: student.studentProfile?.avatarUrl ?? null,
+        career: student.studentProfile?.career.name ?? null,
       },
       pointsAwarded: transaction.points,
-      newTotal: updatedStudent.totalPoints,
+      newTotal,
       activity: { id: activity.id, title: activity.title },
       checkedInAt: attendance.checkedInAt.toISOString(),
     };

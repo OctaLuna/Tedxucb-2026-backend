@@ -7,6 +7,7 @@ import { cleanRateLimits, closeRedisTestClient } from '../support/redis-test-cli
 import { seedUser } from '../support/seed-user';
 import { seedStudent } from '../support/seed-catalog';
 import { seedActivity, seedActivityStaff } from '../support/seed-activities';
+import { grantEventAccess } from '../support/seed-events';
 import { expiredQrToken, tamperedQrToken } from '../support/qr-token-fixture';
 import { QrTokenService } from '../../src/modules/activities/qr-token.service';
 
@@ -67,6 +68,50 @@ describe('Check-in de participación (contrato, RF-305 RF-311 a RF-321)', () => 
 
     const profile = await prismaTestClient.studentProfile.findUniqueOrThrow({ where: { userId: student.id } });
     expect(profile.totalPoints).toBe(10);
+  });
+
+  it('Innovation Week acredita cuentas sin StudentProfile y mantiene saldo acumulado e idempotente', async () => {
+    const { token: staffToken, activity: firstActivity } = await setupStaffAndActivity({
+      eventSlug: 'innovation-week', pointsValue: 12,
+    });
+    const student = await seedUser({ email: 'bizweek-sin-perfil@ucb.edu.bo', fullName: 'Participante BizWeek' });
+    await grantEventAccess(student.email, 'innovation-week');
+    const studentToken = await loginAs(app, student.email);
+    const firstScan = qrTokenService.issue(student.id).token;
+
+    const first = await request(app.getHttpServer())
+      .post(`/api/v1/activities/${firstActivity.id}/checkin`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ qrToken: firstScan })
+      .expect(201);
+
+    expect(first.body).toMatchObject({ pointsAwarded: 12, newTotal: 12, student: { fullName: 'Participante BizWeek' } });
+    expect(await prismaTestClient.studentProfile.findUnique({ where: { userId: student.id } })).toBeNull();
+
+    const second = await request(app.getHttpServer())
+      .post(`/api/v1/activities/${firstActivity.id}/checkin`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ qrToken: qrTokenService.issue(student.id).token })
+      .expect(409);
+    expect(second.body.error).toBe('ALREADY_CHECKED_IN');
+
+    const { token: otherStaffToken, activity: secondActivity } = await setupStaffAndActivity({
+      eventSlug: 'innovation-week', pointsValue: 8,
+    });
+    const secondCheckin = await request(app.getHttpServer())
+      .post(`/api/v1/activities/${secondActivity.id}/checkin`)
+      .set('Authorization', `Bearer ${otherStaffToken}`)
+      .send({ qrToken: qrTokenService.issue(student.id).token })
+      .expect(201);
+    expect(secondCheckin.body.newTotal).toBe(20);
+
+    const points = await request(app.getHttpServer())
+      .get('/api/v1/me/points?eventSlug=innovation-week&page=1&limit=1')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .expect(200);
+    expect(points.body.summary).toMatchObject({ totalPoints: 20, activitiesAttended: 2 });
+    expect(await prismaTestClient.pointTransaction.count({ where: { studentId: student.id } })).toBe(2);
+    expect(await prismaTestClient.attendance.count({ where: { studentId: student.id } })).toBe(2);
   });
 
   it('rechaza con 400 INVALID_QR_TOKEN un token con firma inválida', async () => {

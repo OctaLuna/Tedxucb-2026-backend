@@ -99,7 +99,7 @@ export class ReconciliationService {
 
   async fixEventProjection(studentId: string | undefined, actorId: string): Promise<EventPointsDiscrepancy[]> {
     return this.prisma.$transaction(async (tx) => {
-      if (studentId) await tx.$queryRaw`SELECT 1 FROM student_profiles WHERE user_id = ${studentId}::uuid FOR UPDATE`;
+      if (studentId) await tx.$queryRaw`SELECT id FROM users WHERE id = ${studentId}::uuid FOR UPDATE`;
       return this.repairEventProjection(tx, actorId, studentId);
     });
   }
