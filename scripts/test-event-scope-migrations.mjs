@@ -30,6 +30,16 @@ function databaseUrl(base, databaseName) {
   return url.toString();
 }
 
+async function legacyLedgerSnapshot(client) {
+  // Compare the immutable ledger values across migrations while ignoring the
+  // schedule-attendance reference column introduced by the new migration.
+  const result = await client.query("SELECT to_jsonb(pt) - 'program_attendance_id' AS row FROM point_transactions pt ORDER BY id");
+  return {
+    hash: createHash('sha256').update(JSON.stringify(result.rows.map((item) => item.row))).digest('hex'),
+    rows: result.rows.length,
+  };
+}
+
 function runPrisma(configPath, args, url) {
   const result = spawnSync(process.execPath, [prismaCli, ...args, '--config', configPath], {
     cwd: root,
@@ -109,10 +119,9 @@ async function createFixture(client, ids) {
     await client.query("INSERT INTO point_transactions(id,student_id,points,type,activity_id,reason,created_by) VALUES($1,$2,10,'ACTIVITY',$3,NULL,$4),($5,$2,3,'ADJUSTMENT',NULL,'legacy manual adjustment',$4)", [ids.pointActivity, ids.student, ids.activity, ids.admin, ids.pointAdjustment]);
     await client.query("INSERT INTO selection_runs(id,event_id,executed_by,student_capacity_snapshot) VALUES($1,$2,$3,1)", [ids.run, ids.event, ids.admin]);
     await client.query("INSERT INTO selections(id,run_id,source,student_id,points_at_selection,rank_at_selection,entry_code) VALUES($1,$2,'RANKING',$3,13,1,'MIG-FIXTURE-ENTRY')", [ids.selection, ids.run, ids.student]);
-    const ledger = await client.query('SELECT * FROM point_transactions ORDER BY id');
-    const ledgerHash = createHash('sha256').update(JSON.stringify(ledger.rows)).digest('hex');
+    const ledger = await legacyLedgerSnapshot(client);
     await client.query('COMMIT');
-    return { ledgerHash, ledgerRows: ledger.rows.length };
+    return { ledgerHash: ledger.hash, ledgerRows: ledger.rows };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -139,9 +148,8 @@ async function verifyRestoredBaseline(client, ids, snapshot) {
   for (const [field, value] of Object.entries(expected)) {
     if (Number(row[field]) !== value) throw new Error(`Sanitized dump did not preserve the expected ${field} count or relation.`);
   }
-  const ledger = await client.query('SELECT * FROM point_transactions ORDER BY id');
-  const ledgerHash = createHash('sha256').update(JSON.stringify(ledger.rows)).digest('hex');
-  if (ledgerHash !== snapshot.ledgerHash) throw new Error('Sanitized dump changed the immutable legacy ledger snapshot.');
+  const ledger = await legacyLedgerSnapshot(client);
+  if (ledger.hash !== snapshot.ledgerHash) throw new Error('Sanitized dump changed the immutable legacy ledger snapshot.');
 }
 
 async function expectRejected(client, sql, params, expected) {
@@ -174,9 +182,8 @@ async function verifyFixture(client, ids, snapshot) {
   }
   if (Number(row.owners) !== snapshot.ledgerRows || Number(row.projected_points) !== 13) throw new Error('Ledger ownership/projection backfill is incomplete.');
 
-  const ledger = await client.query('SELECT * FROM point_transactions ORDER BY id');
-  const ledgerHash = createHash('sha256').update(JSON.stringify(ledger.rows)).digest('hex');
-  if (ledger.rows.length !== snapshot.ledgerRows || ledgerHash !== snapshot.ledgerHash) throw new Error('Migration changed legacy point_transactions rows.');
+  const ledger = await legacyLedgerSnapshot(client);
+  if (ledger.rows !== snapshot.ledgerRows || ledger.hash !== snapshot.ledgerHash) throw new Error('Migration changed legacy point_transactions rows.');
   const ownership = await client.query('SELECT point_transaction_id,event_id FROM point_transaction_event_ownership');
   if (ownership.rows.length !== snapshot.ledgerRows || ownership.rows.some((item) => item.event_id !== ids.event)) throw new Error('Legacy ledger ownership is not attributed to TEDx.');
 
@@ -200,7 +207,7 @@ async function verifyFixture(client, ids, snapshot) {
     (SELECT count(*) FROM activities WHERE event_id IS NULL) +
     (SELECT count(*) FROM selections WHERE event_id IS NULL) AS scoped_orphans`);
   if (Number(orphanCheck.rows[0].scoped_orphans) !== 0) throw new Error('Scoped legacy data contains orphan rows.');
-  return { events: 2, tedxStartsAt, legacyRowsBackfilled: 7, ledgerRows: ledger.rows.length, ledgerHashUnchanged: true, crossEventConstraints: 'passed', scopedOrphans: 0, projectedPoints: Number(row.projected_points) };
+  return { events: 2, tedxStartsAt, legacyRowsBackfilled: 7, ledgerRows: ledger.rows, ledgerHashUnchanged: true, crossEventConstraints: 'passed', scopedOrphans: 0, projectedPoints: Number(row.projected_points) };
 }
 
 async function main() {

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { LedgerModule } from '../../common/ledger/ledger.module';
 import { UploadModule } from '../../common/upload/upload.module';
 import { PublicEventController } from './public-event.controller';
 import { EventsController } from './events.controller';
@@ -17,7 +18,7 @@ import { ProgramEnrollmentController } from './program-enrollment.controller';
 import { ProgramEnrollmentService } from './program-enrollment.service';
 
 @Module({
-  imports: [AuthModule, UploadModule, EventAccessModule],
+  imports: [AuthModule, UploadModule, EventAccessModule, LedgerModule],
   controllers: [PublicEventController, EventsController, ContentBlocksController, EventProgramController, PublicEventProgramController, EventLiveController, PublicEventLiveController, ProgramEnrollmentController, ProgramAttendanceController],
   providers: [EventsService, ContentBlocksService, EventProgramService, EventLiveService, ProgramEnrollmentService, ProgramAttendanceService],
 })

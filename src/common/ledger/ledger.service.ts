@@ -10,6 +10,7 @@ export interface RecordMovementInput {
   type: LedgerTransactionType;
   activityId?: string;
   attendanceId?: string;
+  programAttendanceId?: string;
   reversesId?: string;
   reason?: string;
   createdById?: string;
