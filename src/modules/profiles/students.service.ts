@@ -26,9 +26,8 @@ export class StudentsService {
       this.prisma.studentProfile.findMany({
         where,
         include: {
-          user: true,
+          user: { include: { eventPoints: { where: { eventId: event.id }, select: { totalPoints: true } } } },
           career: { include: { faculty: true } },
-          eventPoints: { where: { eventId: event.id }, select: { totalPoints: true } },
         },
         skip: (filters.page - 1) * filters.limit,
         take: filters.limit,
@@ -48,9 +47,8 @@ export class StudentsService {
     const profile = await this.prisma.studentProfile.findUnique({
       where: { userId },
       include: {
-        user: true,
+        user: { include: { eventPoints: { where: { eventId: event.id }, select: { totalPoints: true } } } },
         career: { include: { faculty: true } },
-        eventPoints: { where: { eventId: event.id }, select: { totalPoints: true } },
       },
     });
     if (!profile || !permittedEmails.has(profile.user.email)) {
@@ -67,9 +65,8 @@ export class StudentsService {
     const rows = await this.prisma.studentProfile.findMany({
       where,
       include: {
-        user: true,
+        user: { include: { eventPoints: { where: { eventId: event.id }, select: { totalPoints: true } } } },
         career: { include: { faculty: true } },
-        eventPoints: { where: { eventId: event.id }, select: { totalPoints: true } },
       },
       orderBy: { user: { fullName: 'asc' } },
     });
@@ -80,7 +77,7 @@ export class StudentsService {
     const header = ['Nombre', 'Código', 'Correo', 'Carrera', 'Facultad', 'Estado', 'Puntos'];
     const lines = rows.map((row) => [
       row.user.fullName, row.studentCode, row.user.email, row.career.name, row.career.faculty.name,
-      row.user.status, String(row.eventPoints[0]?.totalPoints ?? 0),
+      row.user.status, String(row.user.eventPoints[0]?.totalPoints ?? 0),
     ]);
     const csvRows = [header, ...lines].map((fields) => fields.map(this.csvField).join(','));
     return '\uFEFF' + csvRows.join('\r\n');
@@ -135,9 +132,8 @@ export class StudentsService {
     studentCode: string;
     academicPeriod: string;
     avatarUrl: string | null;
-    user: { fullName: string; email: string; status: string };
+    user: { fullName: string; email: string; status: string; eventPoints: Array<{ totalPoints: number }> };
     career: { name: string; faculty: { name: string } };
-    eventPoints: Array<{ totalPoints: number }>;
   }) {
     return {
       id: profile.userId,
@@ -149,7 +145,7 @@ export class StudentsService {
       faculty: profile.career.faculty.name,
       academicPeriod: profile.academicPeriod,
       avatarUrl: profile.avatarUrl,
-      totalPoints: profile.eventPoints[0]?.totalPoints ?? 0,
+      totalPoints: profile.user.eventPoints[0]?.totalPoints ?? 0,
     };
   }
 }

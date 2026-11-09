@@ -26,8 +26,10 @@ export class PointsAdjustmentsService {
       throw new AppException(400, 'ZERO_POINTS', 'El movimiento no puede ser de cero puntos.');
     }
 
-    const student = await this.prisma.studentProfile.findUnique({ where: { userId: dto.studentId } });
-    if (!student) {
+    const student = await this.prisma.user.findUnique({
+      where: { id: dto.studentId }, select: { id: true, roles: { select: { role: true } } },
+    });
+    if (!student || !student.roles.some(({ role }) => role === 'ALUMNO')) {
       throw new AppException(404, 'NOT_FOUND', 'Alumno no encontrado.');
     }
 
@@ -36,7 +38,10 @@ export class PointsAdjustmentsService {
     await this.eventAccess.assertEventAccess(dto.studentId, eventSlug);
 
     return this.prisma.$transaction(async (tx) => {
-      const before = await tx.studentProfile.findUniqueOrThrow({ where: { userId: dto.studentId } });
+      const before = await tx.eventStudentPoints.findUnique({
+        where: { eventId_studentId: { eventId: event.id, studentId: dto.studentId } },
+        select: { totalPoints: true },
+      });
 
       const transaction = await this.ledger.recordMovement(tx, {
         eventId: event.id,
@@ -47,8 +52,12 @@ export class PointsAdjustmentsService {
         createdById: actorId,
       });
 
-      const after = await tx.studentProfile.findUniqueOrThrow({ where: { userId: dto.studentId } });
-      const truncated = after.totalPoints !== before.totalPoints + dto.points;
+      const after = await tx.eventStudentPoints.findUnique({
+        where: { eventId_studentId: { eventId: event.id, studentId: dto.studentId } },
+        select: { totalPoints: true },
+      });
+      const newTotal = after?.totalPoints ?? 0;
+      const truncated = newTotal !== (before?.totalPoints ?? 0) + dto.points;
 
       await tx.auditLog.create({
         data: {
@@ -60,7 +69,7 @@ export class PointsAdjustmentsService {
         },
       });
 
-      return { transactionId: transaction.id, newTotal: after.totalPoints, truncated };
+      return { transactionId: transaction.id, newTotal, truncated };
     });
   }
 
@@ -101,7 +110,10 @@ export class PointsAdjustmentsService {
           createdById: actorId,
         });
 
-        const updated = await tx.studentProfile.findUniqueOrThrow({ where: { userId: original.studentId } });
+        const updated = await tx.eventStudentPoints.findUnique({
+          where: { eventId_studentId: { eventId: event.id, studentId: original.studentId } },
+          select: { totalPoints: true },
+        });
 
         await tx.auditLog.create({
           data: {
@@ -113,7 +125,7 @@ export class PointsAdjustmentsService {
           },
         });
 
-        return { transactionId: reversal.id, reversesId: transactionId, newTotal: updated.totalPoints };
+        return { transactionId: reversal.id, reversesId: transactionId, newTotal: updated?.totalPoints ?? 0 };
       });
     } catch (error) {
       // Segunda capa contra la carrera (dos admins revirtiendo el mismo

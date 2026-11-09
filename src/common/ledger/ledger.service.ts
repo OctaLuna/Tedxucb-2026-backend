@@ -46,14 +46,16 @@ export class LedgerService {
       data: transactionInput as Prisma.PointTransactionUncheckedCreateInput,
     });
 
-    await tx.$queryRaw`SELECT 1 FROM student_profiles WHERE user_id = ${input.studentId}::uuid FOR UPDATE`;
-    const current = await tx.studentProfile.findUniqueOrThrow({ where: { userId: input.studentId } });
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${input.studentId}::uuid FOR UPDATE`;
+    const current = await tx.studentProfile.findUnique({ where: { userId: input.studentId } });
 
     // Trunca a cero -- RF-328. El CHECK total_points_non_negative en el
     // motor es la garantía real; esto evita que el propio código intente
     // escribir un negativo y choque con el CHECK en el camino feliz.
-    const nextTotal = Math.max(0, current.totalPoints + input.points);
-    await tx.studentProfile.update({ where: { userId: input.studentId }, data: { totalPoints: nextTotal } });
+    if (current) {
+      const nextTotal = Math.max(0, current.totalPoints + input.points);
+      await tx.studentProfile.update({ where: { userId: input.studentId }, data: { totalPoints: nextTotal } });
+    }
 
     return transaction;
   }

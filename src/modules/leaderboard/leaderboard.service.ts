@@ -15,6 +15,15 @@ interface RankedRow {
   total_count: bigint | number;
 }
 
+interface InnovationRankedRow {
+  student_id: string;
+  full_name: string;
+  career: string | null;
+  total_points: number;
+  position: bigint | number;
+  total_count: bigint | number;
+}
+
 interface ExportRow {
   student_code: string;
   full_name: string;
@@ -45,6 +54,41 @@ export class LeaderboardService {
     const where = this.buildWhere(filters);
     const event = await this.prisma.event.findUnique({ where: { slug: eventSlug }, select: { id: true, slug: true } });
     if (!event) throw new AppException(404, 'EVENT_NOT_FOUND', 'Evento no encontrado.');
+
+    if (eventSlug === 'innovation-week') {
+      const rows = await this.prisma.$queryRaw<InnovationRankedRow[]>`
+        SELECT u.id AS student_id, COALESCE(NULLIF(u.nickname, ''), u.full_name) AS full_name,
+               c.name AS career, COALESCE(esp.total_points, 0) AS total_points,
+               RANK() OVER (ORDER BY COALESCE(esp.total_points, 0) DESC, u.created_at ASC, u.id ASC) AS position,
+               COUNT(*) OVER() AS total_count
+        FROM users u
+        JOIN user_roles ur ON ur.user_id = u.id AND ur.role = 'ALUMNO'
+        LEFT JOIN student_profiles sp ON sp.user_id = u.id
+        LEFT JOIN careers c ON c.id = sp.career_id
+        LEFT JOIN event_student_points esp ON esp.student_id = u.id AND esp.event_id = ${event.id}::uuid
+        WHERE u.status = 'ACTIVE'
+          AND (
+            (u.email LIKE '%@ucb.edu.bo' AND EXISTS (
+              SELECT 1 FROM user_identities ui WHERE ui.user_id = u.id AND ui.provider = 'GOOGLE'
+                AND ui.verified_email = u.email AND ui.hosted_domain = 'ucb.edu.bo'
+            )) OR EXISTS (
+              SELECT 1 FROM event_email_access access WHERE access.event_id = ${event.id}::uuid
+                AND access.email_normalized = u.email AND access.revoked_at IS NULL
+            )
+          )
+          ${filters.career ? Prisma.sql`AND sp.career_id = ${filters.career}::uuid` : Prisma.empty}
+          ${filters.faculty ? Prisma.sql`AND c.faculty_id = ${filters.faculty}::uuid` : Prisma.empty}
+        ORDER BY position
+        LIMIT ${clampedLimit}
+      `;
+      return {
+        data: rows.map((row) => ({
+          position: Number(row.position), studentId: row.student_id, fullName: row.full_name,
+          career: row.career, totalPoints: row.total_points,
+        })),
+        meta: { totalStudents: rows.length > 0 ? Number(rows[0].total_count) : 0, generatedAt: new Date().toISOString() },
+      };
+    }
 
     const rows = await this.prisma.$queryRaw<RankedRow[]>`
       SELECT sp.user_id AS student_id, u.full_name, c.name AS career,
@@ -86,6 +130,46 @@ export class LeaderboardService {
   async getStudentProgress(studentId: string, eventSlug = 'tedxucb') {
     const event = await this.prisma.event.findUnique({ where: { slug: eventSlug }, select: { id: true, slug: true } });
     if (!event) throw new AppException(404, 'EVENT_NOT_FOUND', 'Evento no encontrado.');
+    if (eventSlug === 'innovation-week') {
+      const rows = await this.prisma.$queryRaw<Array<{ position: bigint | number; total_count: bigint | number }>>`
+        SELECT position, total_count FROM (
+          SELECT u.id AS student_id,
+            RANK() OVER (ORDER BY COALESCE(esp.total_points, 0) DESC, u.created_at ASC, u.id ASC) AS position,
+            COUNT(*) OVER() AS total_count
+          FROM users u
+          JOIN user_roles ur ON ur.user_id = u.id AND ur.role = 'ALUMNO'
+          LEFT JOIN event_student_points esp ON esp.student_id = u.id AND esp.event_id = ${event.id}::uuid
+          WHERE u.status = 'ACTIVE'
+            AND ((u.email LIKE '%@ucb.edu.bo' AND EXISTS (
+              SELECT 1 FROM user_identities ui WHERE ui.user_id = u.id AND ui.provider = 'GOOGLE'
+                AND ui.verified_email = u.email AND ui.hosted_domain = 'ucb.edu.bo'
+            )) OR EXISTS (
+              SELECT 1 FROM event_email_access access WHERE access.event_id = ${event.id}::uuid
+                AND access.email_normalized = u.email AND access.revoked_at IS NULL
+            ))
+        ) ranked WHERE student_id = ${studentId}::uuid
+      `;
+      const points = await this.prisma.eventStudentPoints.findUnique({
+        where: { eventId_studentId: { eventId: event.id, studentId } }, select: { totalPoints: true },
+      });
+      const [count] = await this.prisma.$queryRaw<Array<{ total: bigint }>>`
+        SELECT COUNT(*) AS total FROM users u
+        JOIN user_roles ur ON ur.user_id = u.id AND ur.role = 'ALUMNO'
+        WHERE u.status = 'ACTIVE'
+          AND ((u.email LIKE '%@ucb.edu.bo' AND EXISTS (
+            SELECT 1 FROM user_identities ui WHERE ui.user_id = u.id AND ui.provider = 'GOOGLE'
+              AND ui.verified_email = u.email AND ui.hosted_domain = 'ucb.edu.bo'
+          )) OR EXISTS (
+            SELECT 1 FROM event_email_access access WHERE access.event_id = ${event.id}::uuid
+              AND access.email_normalized = u.email AND access.revoked_at IS NULL
+          ))
+      `;
+      return {
+        totalPoints: points?.totalPoints ?? 0,
+        rank: rows.length > 0 ? Number(rows[0].position) : null,
+        totalStudents: Number(count?.total ?? 0n),
+      };
+    }
     await this.prisma.studentProfile.findUniqueOrThrow({ where: { userId: studentId } });
 
     const rows = await this.prisma.$queryRaw<Array<{ position: bigint | number; total_count: bigint | number }>>`

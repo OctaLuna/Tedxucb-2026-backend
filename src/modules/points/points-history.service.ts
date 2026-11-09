@@ -30,7 +30,7 @@ export class PointsHistoryService {
       this.prisma.eventStudentPoints.findUnique({
         where: { eventId_studentId: { eventId: event.id, studentId } }, select: { totalPoints: true },
       }),
-      this.prisma.attendance.count({ where: { studentId, activity: { eventId: event.id } } }),
+      this.prisma.attendance.count({ where: { studentId, status: 'APPROVED', activity: { eventId: event.id } } }),
     ]);
 
     return {
