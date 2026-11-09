@@ -48,6 +48,38 @@ describe('ProgramAttendanceService', () => {
     expect(transactionTx.programAttendanceLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { programItemId: 'item-1', revokedAt: null } }));
   });
 
+  it('creates links and accepts check-ins for published non-talk program items', async () => {
+    itemFindFirst.mockImplementationOnce(({ where }: { where: { id: string } }) => Promise.resolve(item({
+      id: where.id,
+      title: 'Actividad central',
+      type: 'ACTIVITY',
+    })));
+    const created = await service.createLink('activity-1', 'admin-1', 'innovation-week');
+    expect(created.data.token).toHaveLength(43);
+
+    linkFind.mockResolvedValue({ tokenHash: createHash('sha256').update(created.data.token).digest('hex'), revokedAt: null, programItem: item({
+      id: 'activity-1',
+      title: 'Actividad central',
+      type: 'ACTIVITY',
+    }) });
+    attendanceFind.mockResolvedValue(null);
+    attendanceCreate.mockResolvedValue({ id: 'activity-attendance', checkedInAt: new Date() });
+
+    await expect(service.preview('user-1', created.data.token)).resolves.toMatchObject({
+      data: { item: { id: 'activity-1', title: 'Actividad central' }, alreadyConfirmed: false },
+    });
+    await expect(service.confirm('user-1', created.data.token)).resolves.toMatchObject({
+      data: { item: { id: 'activity-1', title: 'Actividad central' }, alreadyConfirmed: false },
+    });
+    expect(attendanceCreate).toHaveBeenCalledWith({ data: { userId: 'user-1', programItemId: 'activity-1', method: 'NFC_LINK' } });
+  });
+
+  it('still rejects links for unpublished program items', async () => {
+    itemFindFirst.mockResolvedValueOnce(item({ id: 'draft-item', status: 'DRAFT', type: 'ACTIVITY' }));
+    await expect(service.createLink('draft-item', 'admin-1', 'innovation-week')).rejects.toThrow(/elementos publicados del cronograma/i);
+    expect(transactionTx.programAttendanceLink.create).not.toHaveBeenCalled();
+  });
+
   it('keeps generated links isolated to their own program talk', async () => {
     const first = await service.createLink('talk-1', 'admin-1', 'innovation-week');
     const second = await service.createLink('talk-2', 'admin-1', 'innovation-week');
@@ -129,11 +161,11 @@ describe('ProgramAttendanceService', () => {
   it('returns real per-talk profile states rather than deriving attendance from clock time', async () => {
     itemsFind.mockResolvedValue([
       { ...item(), enrollments: [], attendances: [] },
-      { ...item({ id: 'item-2', endsAt: new Date('2026-11-08T09:00:00Z') }), enrollments: [{ createdAt: new Date() }], attendances: [] },
+      { ...item({ id: 'item-2', type: 'ACTIVITY', endsAt: new Date('2026-11-08T09:00:00Z') }), enrollments: [{ createdAt: new Date() }], attendances: [] },
       { ...item({ id: 'item-3' }), enrollments: [], attendances: [{ checkedInAt: new Date(), method: 'NFC_LINK' }] },
     ]);
     const result = await service.myProgramStatus('user-1', 'innovation-week');
     expect(result.data.map((row) => row.state)).toEqual(['NOT_ENROLLED', 'ENROLLED_NO_ATTENDANCE', 'ATTENDED']);
-    expect(itemsFind).toHaveBeenCalledWith(expect.objectContaining({ where: { eventId: 'event-1', type: 'TALK', status: { in: ['PUBLISHED', 'CANCELLED'] } } }));
+    expect(itemsFind).toHaveBeenCalledWith(expect.objectContaining({ where: { eventId: 'event-1', status: { in: ['PUBLISHED', 'CANCELLED'] } } }));
   });
 });
