@@ -6,7 +6,7 @@
   "scripts": {
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "start:local": "cross-env DATABASE_URL=postgresql://ted_test:local_test_only@127.0.0.1:55432/ted_backend_local?schema=public DIRECT_URL=postgresql://ted_test:local_test_only@127.0.0.1:55432/ted_backend_local?schema=public REDIS_URL=redis://127.0.0.1:56379/1 NODE_ENV=development PORT=3100 CORS_ORIGIN=http://localhost:5173,http://localhost:3000 JWT_SECRET=local-only-jwt-secret-with-32-characters-minimum QR_TOKEN_SECRET=local-only-qr-secret-with-32-characters-minimum AVATAR_BRIDGE_SECRET=local-only-avatar-bridge-secret-with-32-characters PUBLIC_FRONTEND_URL_TEDX=http://localhost:3000 PUBLIC_FRONTEND_URL_INNOVATION_WEEK=http://localhost:5173 nest start",
+    "start:local": "cross-env DATABASE_URL=postgresql://ted_test:local_test_only@127.0.0.1:55432/ted_backend_local?schema=public DIRECT_URL=postgresql://ted_test:local_test_only@127.0.0.1:55432/ted_backend_local?schema=public REDIS_URL=redis://127.0.0.1:56379/1 NODE_ENV=development PORT=3100 CORS_ORIGIN=http://localhost:5173,http://localhost:3000 JWT_SECRET=local-only-jwt-secret-with-32-characters-minimum QR_TOKEN_SECRET=local-only-qr-secret-with-32-characters-minimum AVATAR_BRIDGE_SECRET=local-only-avatar-bridge-secret-with-32-characters AVATAR_2D_API_BASE_URL=http://localhost:5175/api/v1/ PUBLIC_FRONTEND_URL_TEDX=http://localhost:3000 PUBLIC_FRONTEND_URL_INNOVATION_WEEK=http://localhost:5173 nest start",
     "test:migrations:local": "node scripts/test-event-scope-migrations.mjs",
     "build": "nest build",
     "migrate:local": "ts-node scripts/migrate-local.ts",
