@@ -441,6 +441,7 @@ model ProgramAttendanceLink {
   programItemId String    @map("program_item_id") @db.Uuid
   tokenHash     String    @unique @map("token_hash")
   createdById   String    @map("created_by_id") @db.Uuid
+  kind          String    @default("ATTENDANCE")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
   revokedAt     DateTime? @map("revoked_at") @db.Timestamptz
 
