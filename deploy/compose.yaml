@@ -53,6 +53,8 @@ services:
       DATABASE_URL: postgresql://ted:${DB_PASSWORD}@postgres:5432/tedx_platform?schema=public
       DIRECT_URL: postgresql://ted:${DB_PASSWORD}@postgres:5432/tedx_platform?schema=public
       REDIS_URL: redis://redis:6379/0
+      AVATAR_2D_API_BASE_URL: ${AVATAR_2D_API_BASE_URL:-http://avatar-service:4002/v1/}
+      AVATAR_2D_PREVIEW_BASE_URL: ${AVATAR_2D_PREVIEW_BASE_URL:-https://bizweek.adm-ucb.lat/avatar/api/v1/}
     volumes:
       - backend_uploads:/app/uploads
     depends_on:
