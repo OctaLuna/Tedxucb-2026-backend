@@ -3,6 +3,7 @@ import { AvatarBridgeTokenService } from '../auth/avatar-bridge-token.service';
 import { createHmac } from 'node:crypto';
 
 const avatarApiBase = 'https://bizweek.example/avatar/api/v1/';
+const publicPreviewBase = 'https://bizweek.example/avatar/api/v1/';
 const userWithAvatar = '00000000-0000-4000-8000-000000000101';
 const userWithoutAvatar = '00000000-0000-4000-8000-000000000102';
 const reference = {
@@ -13,7 +14,10 @@ const reference = {
   preview: { mediaType: 'image/png' as const, url: `${avatarApiBase}previews/avatar-101/4.png` },
 };
 
-function createService(apiBaseUrl: string | undefined = avatarApiBase) {
+function createService(options: { apiBaseUrl?: string; previewBaseUrl?: string; nodeEnv?: string } = {}) {
+  const apiBaseUrl = options.apiBaseUrl === undefined ? avatarApiBase : options.apiBaseUrl;
+  const previewBaseUrl = options.previewBaseUrl === undefined ? apiBaseUrl : options.previewBaseUrl;
+  const nodeEnv = options.nodeEnv ?? 'test';
   const rows = [
     { student_id: userWithAvatar, full_name: 'Ari', career: 'Economía', total_points: 20, position: 1, total_count: 2 },
     { student_id: userWithoutAvatar, full_name: 'Sol', career: null, total_points: 10, position: 2, total_count: 2 },
@@ -22,7 +26,11 @@ function createService(apiBaseUrl: string | undefined = avatarApiBase) {
     event: { findUnique: jest.fn().mockResolvedValue({ id: 'event-innovation-week', slug: 'innovation-week' }) },
     $queryRaw: jest.fn().mockResolvedValue(rows),
   };
-  const config = { get: jest.fn().mockReturnValue(apiBaseUrl) };
+  const config = { get: jest.fn((key: string) => ({
+    AVATAR_2D_API_BASE_URL: apiBaseUrl,
+    AVATAR_2D_PREVIEW_BASE_URL: previewBaseUrl,
+    NODE_ENV: nodeEnv,
+  }[key])) };
   const avatarBridge = { issueLeaderboardLookup: jest.fn().mockReturnValue({ token: 'signed-lookup-token', expiresAt: 'soon' }) };
   return {
     service: new LeaderboardService(prisma as never, config as never, avatarBridge as never),
@@ -70,7 +78,7 @@ describe('LeaderboardService Avatar 2D enrichment', () => {
     ]);
   });
 
-  it('ignores references outside the requested identities and preview origins', async () => {
+  it('ignores unknown identities and unsafe preview paths', async () => {
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ data: [
@@ -87,7 +95,7 @@ describe('LeaderboardService Avatar 2D enrichment', () => {
 
   it('keeps ranking available when Avatar 2D is not configured or temporarily unavailable', async () => {
     const fetchSpy = jest.spyOn(global, 'fetch');
-    const unconfigured = createService('');
+    const unconfigured = createService({ apiBaseUrl: '', previewBaseUrl: '' });
     const withoutService = await unconfigured.service.getLeaderboard({}, 100, 'innovation-week');
     expect(withoutService.data).toHaveLength(2);
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -97,5 +105,21 @@ describe('LeaderboardService Avatar 2D enrichment', () => {
     const offline = await configured.service.getLeaderboard({}, 100, 'innovation-week');
     expect(offline.data).toHaveLength(2);
     expect(offline.data.every((row) => !('avatar' in row))).toBe(true);
+  });
+
+  it('uses the internal production service and normalizes preview URLs to the public BizWeek route', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{
+        identitySub: userWithAvatar,
+        reference: { ...reference, preview: { ...reference.preview, url: 'https://old-host.example/avatar/api/v1/previews/avatar-101/4.png' } },
+      }] }),
+    } as Response);
+    const { service } = createService({ apiBaseUrl: '', previewBaseUrl: '', nodeEnv: 'production' });
+
+    const result = await service.getLeaderboard({}, 100, 'innovation-week');
+
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe('http://avatar-service:4002/v1/identity/references');
+    expect(result.data[0]?.avatar?.preview.url).toBe(`${publicPreviewBase}previews/avatar-101/4.png`);
   });
 });
