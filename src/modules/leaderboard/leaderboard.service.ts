@@ -103,7 +103,7 @@ export class LeaderboardService {
         ORDER BY position
         LIMIT ${clampedLimit}
       `;
-      const avatarReferences = await this.lookupAvatarReferences(rows.map((row) => row.student_id));
+      const avatarReferences = await this.lookupAvatarReferences(rows.map((row) => row.student_id), eventSlug);
       return {
         data: rows.map((row) => ({
           position: Number(row.position), studentId: row.student_id, fullName: row.full_name,
@@ -146,18 +146,31 @@ export class LeaderboardService {
     };
   }
 
-  private async lookupAvatarReferences(identitySubs: string[]): Promise<Map<string, AvatarReference>> {
-    const baseUrl = this.config.get('AVATAR_2D_API_BASE_URL', { infer: true });
-    if (!baseUrl || identitySubs.length === 0) {
-      if (!baseUrl && !this.warnedMissingAvatarConfig) {
+  private async lookupAvatarReferences(identitySubs: string[], eventSlug: string): Promise<Map<string, AvatarReference>> {
+    const configuredApiBaseUrl = this.config.get('AVATAR_2D_API_BASE_URL', { infer: true });
+    const isProduction = this.config.get('NODE_ENV', { infer: true }) === 'production';
+    // The backend and Avatar 2D share the private Docker edge network in the
+    // production stack. Keep the API call internal and avoid hairpinning through
+    // the public reverse proxy.
+    const apiBaseUrl = configuredApiBaseUrl || (isProduction && eventSlug === 'innovation-week'
+      ? 'http://avatar-service:4002/v1/'
+      : undefined);
+    const configuredPreviewBaseUrl = this.config.get('AVATAR_2D_PREVIEW_BASE_URL', { infer: true });
+    // Avatar preview URLs are browser-facing, so they must use BizWeek's public
+    // route even when the authenticated lookup itself uses the internal host.
+    const previewBaseUrl = configuredPreviewBaseUrl || (isProduction && eventSlug === 'innovation-week'
+      ? 'https://bizweek.adm-ucb.lat/avatar/api/v1/'
+      : configuredApiBaseUrl);
+    if (!apiBaseUrl || !previewBaseUrl || identitySubs.length === 0) {
+      if ((!apiBaseUrl || !previewBaseUrl) && !this.warnedMissingAvatarConfig) {
         this.warnedMissingAvatarConfig = true;
-        this.logger.warn('AVATAR_2D_API_BASE_URL no está configurada; el ranking seguirá sin vistas previas de avatar.');
+        this.logger.warn('La integración Avatar 2D no tiene una URL de API o de vistas previas; el ranking seguirá disponible sin avatares.');
       }
       return new Map();
     }
 
     try {
-      const endpoint = new URL('identity/references', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
+      const endpoint = new URL('identity/references', apiBaseUrl.endsWith('/') ? apiBaseUrl : `${apiBaseUrl}/`);
       const { token } = this.avatarBridge.issueLeaderboardLookup();
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -177,8 +190,7 @@ export class LeaderboardService {
       }
 
       const allowedIds = new Set(identitySubs);
-      const base = new URL(baseUrl);
-      const expectedPreviewPrefix = `${base.pathname.replace(/\/$/, '')}/previews/`;
+      const previewBase = new URL(previewBaseUrl.endsWith('/') ? previewBaseUrl : `${previewBaseUrl}/`);
       const references = new Map<string, AvatarReference>();
       for (const entry of (payload as AvatarReferenceLookupResponse).data ?? []) {
         const identitySub = entry.identitySub;
@@ -186,16 +198,23 @@ export class LeaderboardService {
         if (typeof identitySub !== 'string' || !allowedIds.has(identitySub) || references.has(identitySub) ||
             !candidate || typeof candidate !== 'object') continue;
         const reference = candidate as Partial<AvatarReference>;
-        const previewUrl = reference.preview?.url;
+        const sourcePreviewUrl = reference.preview?.url;
         if (reference.contractVersion !== 1 || reference.provider !== 'avatar-2d' ||
             typeof reference.avatarId !== 'string' || typeof reference.revision !== 'string' ||
-            reference.preview?.mediaType !== 'image/png' || typeof previewUrl !== 'string') continue;
+            reference.preview?.mediaType !== 'image/png' || typeof sourcePreviewUrl !== 'string') continue;
         try {
-          const preview = new URL(previewUrl);
-          if (preview.origin !== base.origin || !preview.pathname.startsWith(expectedPreviewPrefix) ||
-              !['https:', 'http:'].includes(preview.protocol)) continue;
+          const sourcePreview = new URL(sourcePreviewUrl);
+          const expectedSourcePath = `/api/v1/previews/${encodeURIComponent(reference.avatarId)}/${encodeURIComponent(reference.revision)}.png`;
+          if (!['https:', 'http:'].includes(sourcePreview.protocol) || !sourcePreview.pathname.endsWith(expectedSourcePath)) continue;
+          const normalizedPreviewUrl = new URL(
+            `previews/${encodeURIComponent(reference.avatarId)}/${encodeURIComponent(reference.revision)}.png`,
+            previewBase,
+          ).toString();
+          references.set(identitySub, {
+            ...reference,
+            preview: { ...reference.preview, url: normalizedPreviewUrl },
+          } as AvatarReference);
         } catch { continue; }
-        references.set(identitySub, reference as AvatarReference);
       }
       return references;
     } catch (error) {
