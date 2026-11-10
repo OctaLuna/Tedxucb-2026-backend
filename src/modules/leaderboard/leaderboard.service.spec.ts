@@ -3,7 +3,7 @@ import { AvatarBridgeTokenService } from '../auth/avatar-bridge-token.service';
 import { createHmac } from 'node:crypto';
 
 const avatarApiBase = 'https://bizweek.example/avatar/api/v1/';
-const publicPreviewBase = 'https://bizweek.example/avatar/api/v1/';
+const publicPreviewBase = 'https://bizweek.adm-ucb.lat/avatar/api/v1/';
 const userWithAvatar = '00000000-0000-4000-8000-000000000101';
 const userWithoutAvatar = '00000000-0000-4000-8000-000000000102';
 const reference = {
