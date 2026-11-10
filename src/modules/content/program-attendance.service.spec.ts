@@ -24,7 +24,7 @@ describe('ProgramAttendanceService', () => {
     $queryRaw: jest.fn(),
     programAttendanceLink: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), create: jest.fn().mockResolvedValue({ id: 'link-1', createdAt: new Date() }) },
     auditLog: { create: jest.fn() },
-    programAttendance: { create: attendanceCreate },
+    programAttendance: { findUnique: attendanceFind, create: attendanceCreate },
     activity: { findUnique: activityFind },
     pointTransaction: { findUnique: jest.fn().mockResolvedValue(null) },
     eventStudentPoints: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -55,7 +55,8 @@ describe('ProgramAttendanceService', () => {
     const storedHash = transactionTx.programAttendanceLink.create.mock.calls[0][0].data.tokenHash;
     expect(storedHash).toBe(createHash('sha256').update(result.data.token).digest('hex'));
     expect(storedHash).not.toBe(result.data.token);
-    expect(transactionTx.programAttendanceLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { programItemId: 'item-1', revokedAt: null } }));
+    expect(result.data.kind).toBe('ATTENDANCE');
+    expect(transactionTx.programAttendanceLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { programItemId: 'item-1', kind: 'ATTENDANCE', revokedAt: null } }));
   });
 
   it('creates links and accepts check-ins for published non-talk program items', async () => {
@@ -97,8 +98,8 @@ describe('ProgramAttendanceService', () => {
 
     expect(first.data.token).not.toBe(second.data.token);
     expect(persisted).toEqual([
-      { programItemId: 'talk-1', tokenHash: createHash('sha256').update(first.data.token).digest('hex'), createdById: 'admin-1' },
-      { programItemId: 'talk-2', tokenHash: createHash('sha256').update(second.data.token).digest('hex'), createdById: 'admin-1' },
+      { programItemId: 'talk-1', tokenHash: createHash('sha256').update(first.data.token).digest('hex'), createdById: 'admin-1', kind: 'ATTENDANCE' },
+      { programItemId: 'talk-2', tokenHash: createHash('sha256').update(second.data.token).digest('hex'), createdById: 'admin-1', kind: 'ATTENDANCE' },
     ]);
   });
 
@@ -133,6 +134,22 @@ describe('ProgramAttendanceService', () => {
       idempotencyKey: 'checkin:activity-1:user-1',
       points: 10,
     }));
+  });
+
+  it('awards the exhibitor bonus once, including when attendance already exists', async () => {
+    linkFind.mockResolvedValue({ tokenHash, kind: 'EXHIBITOR', revokedAt: null, programItem: item() });
+    attendanceFind.mockResolvedValue({ id: 'attendance-existing', checkedInAt: new Date(), pointTransaction: { points: 10 } });
+    transactionTx.pointTransaction.findUnique.mockResolvedValue(null);
+    transactionTx.eventStudentPoints.findUnique.mockResolvedValue({ totalPoints: 25 });
+
+    const result = await service.confirm('user-1', token);
+
+    expect(result.data).toMatchObject({ alreadyConfirmed: true, pointsAwarded: 10, bonusPointsAwarded: 15, newTotal: 25, kind: 'EXHIBITOR' });
+    expect(ledgerRecord).toHaveBeenCalledWith(transactionTx, expect.objectContaining({
+      type: 'BONUS', points: 15, studentId: 'user-1', eventId: 'event-1',
+      idempotencyKey: 'program-attendance-exhibitor:item-1:user-1',
+    }));
+    expect(attendanceCreate).not.toHaveBeenCalled();
   });
 
   it('does not award NFC points again when the user already earned activity points by another check-in path', async () => {

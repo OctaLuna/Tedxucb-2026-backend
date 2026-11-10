@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseEnumPipe, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { IsIn, IsOptional } from 'class-validator';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,6 +13,17 @@ import { EventProgramService } from './event-program.service';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator';
 import { RateLimitGuard } from '../../common/rate-limit/rate-limit.guard';
 import { ProgramAttendanceService } from './program-attendance.service';
+
+enum AttendanceLinkKind {
+  ATTENDANCE = 'ATTENDANCE',
+  EXHIBITOR = 'EXHIBITOR',
+}
+
+class CreateAttendanceLinkDto {
+  @IsOptional()
+  @IsIn(['ATTENDANCE', 'EXHIBITOR'])
+  kind: 'ATTENDANCE' | 'EXHIBITOR' = 'ATTENDANCE';
+}
 
 @ApiTags('event-program')
 @ApiBearerAuth()
@@ -48,15 +60,15 @@ export class EventProgramController {
 
   @Post(':id/attendance-link')
   @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
-  createAttendanceLink(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AccessTokenPayload, @Query('eventSlug') eventSlug = 'tedxucb') {
-    return this.attendance.createLink(id, actor.sub, eventSlug);
+  createAttendanceLink(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateAttendanceLinkDto | undefined, @CurrentUser() actor: AccessTokenPayload, @Query('eventSlug') eventSlug = 'tedxucb') {
+    return this.attendance.createLink(id, actor.sub, eventSlug, dto?.kind ?? 'ATTENDANCE');
   }
 
   @Delete(':id/attendance-link')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiQuery({ name: 'eventSlug', required: false, example: 'innovation-week' })
-  async revokeAttendanceLink(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AccessTokenPayload, @Query('eventSlug') eventSlug = 'tedxucb') {
-    await this.attendance.revokeLink(id, actor.sub, eventSlug);
+  async revokeAttendanceLink(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AccessTokenPayload, @Query('eventSlug') eventSlug = 'tedxucb', @Query('kind', new ParseEnumPipe(AttendanceLinkKind, { optional: true })) kind: AttendanceLinkKind = AttendanceLinkKind.ATTENDANCE) {
+    await this.attendance.revokeLink(id, actor.sub, eventSlug, kind as 'ATTENDANCE' | 'EXHIBITOR');
   }
 }
 
