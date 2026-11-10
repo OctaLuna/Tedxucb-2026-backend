@@ -5,12 +5,13 @@ import { AppException } from '../../common/exceptions/app.exception';
 import type { EnvConfig } from '../../config/env.validation';
 
 const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
+const leaderboardLookupSubject = '00000000-0000-4000-8000-000000000000';
 
 @Injectable()
 export class AvatarBridgeTokenService {
   constructor(private readonly config: ConfigService<EnvConfig, true>) {}
 
-  issue(userId: string, scope: 'avatar:claim' | 'avatar:revoke' = 'avatar:claim'): { token: string; expiresAt: string } {
+  issue(userId: string, scope: 'avatar:claim' | 'avatar:revoke' | 'avatar:lookup' = 'avatar:claim'): { token: string; expiresAt: string } {
     const secret = this.config.get('AVATAR_BRIDGE_SECRET', { infer: true });
     if (!secret) throw new AppException(503, 'AVATAR_BRIDGE_UNAVAILABLE', 'La vinculación de avatar no está configurada.');
 
@@ -19,5 +20,9 @@ export class AvatarBridgeTokenService {
     const unsigned = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ iss: 'tedx-ucb-backend', aud: 'avatar-2d', sub: userId, scope, iat: now, exp: now + 90, jti: randomUUID() })}`;
     const signature = createHmac('sha256', secret).update(unsigned).digest('base64url');
     return { token: `${unsigned}.${signature}`, expiresAt: expiresAt.toISOString() };
+  }
+
+  issueLeaderboardLookup(): { token: string; expiresAt: string } {
+    return this.issue(leaderboardLookupSubject, 'avatar:lookup');
   }
 }

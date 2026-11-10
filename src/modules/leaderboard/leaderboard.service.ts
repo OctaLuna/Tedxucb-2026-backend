@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AppException } from '../../common/exceptions/app.exception';
+import { AvatarBridgeTokenService } from '../auth/avatar-bridge-token.service';
+import type { EnvConfig } from '../../config/env.validation';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
@@ -33,6 +36,18 @@ interface ExportRow {
   position: bigint | number;
 }
 
+type AvatarReference = {
+  contractVersion: 1;
+  provider: 'avatar-2d';
+  avatarId: string;
+  revision: string;
+  preview: { mediaType: 'image/png'; url: string };
+};
+
+type AvatarReferenceLookupResponse = {
+  data?: Array<{ identitySub?: unknown; reference?: unknown }>;
+};
+
 export interface LeaderboardFilters {
   career?: string;
   faculty?: string;
@@ -47,7 +62,14 @@ export interface LeaderboardFilters {
  */
 @Injectable()
 export class LeaderboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(LeaderboardService.name);
+  private warnedMissingAvatarConfig = false;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService<EnvConfig, true>,
+    private readonly avatarBridge: AvatarBridgeTokenService,
+  ) {}
 
   async getLeaderboard(filters: LeaderboardFilters, limit = DEFAULT_LIMIT, eventSlug = 'tedxucb') {
     const clampedLimit = Math.min(Math.max(1, limit), MAX_LIMIT);
@@ -81,10 +103,12 @@ export class LeaderboardService {
         ORDER BY position
         LIMIT ${clampedLimit}
       `;
+      const avatarReferences = await this.lookupAvatarReferences(rows.map((row) => row.student_id));
       return {
         data: rows.map((row) => ({
           position: Number(row.position), studentId: row.student_id, fullName: row.full_name,
           career: row.career, totalPoints: row.total_points,
+          ...(avatarReferences.has(row.student_id) ? { avatar: avatarReferences.get(row.student_id) } : {}),
         })),
         meta: { totalStudents: rows.length > 0 ? Number(rows[0].total_count) : 0, generatedAt: new Date().toISOString() },
       };
@@ -120,6 +144,64 @@ export class LeaderboardService {
       })),
       meta: { totalStudents: rows.length > 0 ? Number(rows[0].total_count) : 0, generatedAt: new Date().toISOString() },
     };
+  }
+
+  private async lookupAvatarReferences(identitySubs: string[]): Promise<Map<string, AvatarReference>> {
+    const baseUrl = this.config.get('AVATAR_2D_API_BASE_URL', { infer: true });
+    if (!baseUrl || identitySubs.length === 0) {
+      if (!baseUrl && !this.warnedMissingAvatarConfig) {
+        this.warnedMissingAvatarConfig = true;
+        this.logger.warn('AVATAR_2D_API_BASE_URL no está configurada; el ranking seguirá sin vistas previas de avatar.');
+      }
+      return new Map();
+    }
+
+    try {
+      const endpoint = new URL('identity/references', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
+      const { token } = this.avatarBridge.issueLeaderboardLookup();
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ identitySubs }),
+        signal: AbortSignal.timeout(2500),
+      });
+      if (!response.ok) {
+        this.logger.warn(`Avatar 2D no devolvió referencias para el ranking (HTTP ${response.status}).`);
+        return new Map();
+      }
+
+      const payload: unknown = await response.json();
+      if (!payload || typeof payload !== 'object' || !('data' in payload) || !Array.isArray((payload as AvatarReferenceLookupResponse).data)) {
+        this.logger.warn('Avatar 2D devolvió una respuesta de referencias con formato inválido.');
+        return new Map();
+      }
+
+      const allowedIds = new Set(identitySubs);
+      const base = new URL(baseUrl);
+      const expectedPreviewPrefix = `${base.pathname.replace(/\/$/, '')}/previews/`;
+      const references = new Map<string, AvatarReference>();
+      for (const entry of (payload as AvatarReferenceLookupResponse).data ?? []) {
+        const identitySub = entry.identitySub;
+        const candidate = entry.reference;
+        if (typeof identitySub !== 'string' || !allowedIds.has(identitySub) || references.has(identitySub) ||
+            !candidate || typeof candidate !== 'object') continue;
+        const reference = candidate as Partial<AvatarReference>;
+        const previewUrl = reference.preview?.url;
+        if (reference.contractVersion !== 1 || reference.provider !== 'avatar-2d' ||
+            typeof reference.avatarId !== 'string' || typeof reference.revision !== 'string' ||
+            reference.preview?.mediaType !== 'image/png' || typeof previewUrl !== 'string') continue;
+        try {
+          const preview = new URL(previewUrl);
+          if (preview.origin !== base.origin || !preview.pathname.startsWith(expectedPreviewPrefix) ||
+              !['https:', 'http:'].includes(preview.protocol)) continue;
+        } catch { continue; }
+        references.set(identitySub, reference as AvatarReference);
+      }
+      return references;
+    } catch (error) {
+      this.logger.warn(`No se pudieron consultar las referencias Avatar 2D para el ranking: ${error instanceof Error ? error.message : 'error desconocido'}.`);
+      return new Map();
+    }
   }
 
   /**
