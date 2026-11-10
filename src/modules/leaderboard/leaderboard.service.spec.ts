@@ -120,6 +120,6 @@ describe('LeaderboardService Avatar 2D enrichment', () => {
     const result = await service.getLeaderboard({}, 100, 'innovation-week');
 
     expect(String(fetchSpy.mock.calls[0]?.[0])).toBe('http://avatar-service:4002/v1/identity/references');
-    expect(result.data[0]?.avatar?.preview.url).toBe(`${publicPreviewBase}previews/avatar-101/4.png`);
+    expect(result.data[0]).toMatchObject({ avatar: { preview: { url: `${publicPreviewBase}previews/avatar-101/4.png` } } });
   });
 });
