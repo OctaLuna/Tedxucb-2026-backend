@@ -33,6 +33,8 @@ const envSchema = z.object({
   // protegido.
   QR_TOKEN_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres'),
   AVATAR_BRIDGE_SECRET: z.string().min(32, 'debe tener al menos 32 caracteres').optional(),
+  // Public API base exposed by Avatar 2D, including /api/v1/.
+  AVATAR_2D_API_BASE_URL: z.string().url().optional(),
   // QStash (Upstash) reemplaza al worker persistente de BullMQ para correos
   // y la reconciliación diaria -- no existe en un entorno serverless
   // (Vercel). Sin estas tres, MailService envía directo (dev/pruebas,

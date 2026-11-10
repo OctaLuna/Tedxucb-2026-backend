@@ -45,6 +45,7 @@ import { ConfiguredAdminAccessService } from './configured-admin-access.service'
     JwtAuthGuard,
     RolesGuard,
     GoogleAuthService,
+    AvatarBridgeTokenService,
     JwtModule,
   ],
 })
