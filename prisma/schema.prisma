@@ -482,6 +482,7 @@ model ProgramAttendanceNotification {
   programItemId String    @map("program_item_id") @db.Uuid
   kind          String
   points        Int
+  deferUntilAvatarSaved Boolean @default(false) @map("defer_until_avatar_saved")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
   acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz
 

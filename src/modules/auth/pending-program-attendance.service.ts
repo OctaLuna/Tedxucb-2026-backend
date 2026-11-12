@@ -58,7 +58,10 @@ export class PendingProgramAttendanceService {
               reason: 'Asistencia manual importada desde la lista del evento',
             });
             await tx.programAttendanceNotification.create({
-              data: { userId, programItemId: item.id, kind: 'ATTENDANCE', points: movement.points },
+              data: {
+                userId, programItemId: item.id, kind: 'ATTENDANCE', points: movement.points,
+                deferUntilAvatarSaved: true,
+              },
             });
           }
         }
@@ -78,7 +81,10 @@ export class PendingProgramAttendanceService {
               idempotencyKey,
             });
             await tx.programAttendanceNotification.create({
-              data: { userId, programItemId: item.id, kind: 'EXHIBITOR', points: movement.points },
+              data: {
+                userId, programItemId: item.id, kind: 'EXHIBITOR', points: movement.points,
+                deferUntilAvatarSaved: true,
+              },
             });
           }
         }
@@ -99,8 +105,8 @@ export class PendingProgramAttendanceService {
       orderBy: [{ createdAt: 'asc' }, { kind: 'asc' }],
     });
     return {
-      data: notifications.map(({ id, kind, points, createdAt, programItem }) => ({
-        id, kind, points, createdAt, itemTitle: programItem.title,
+      data: notifications.map(({ id, kind, points, createdAt, deferUntilAvatarSaved, programItem }) => ({
+        id, kind, points, createdAt, deferUntilAvatarSaved, itemTitle: programItem.title,
       })),
     };
   }
