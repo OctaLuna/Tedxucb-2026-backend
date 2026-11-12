@@ -14,10 +14,13 @@ import { GoogleAuthService } from './google-auth.service';
 import { MailModule } from '../../common/mail/mail.module';
 import { AvatarBridgeTokenService } from './avatar-bridge-token.service';
 import { ConfiguredAdminAccessService } from './configured-admin-access.service';
+import { LedgerModule } from '../../common/ledger/ledger.module';
+import { PendingProgramAttendanceService } from './pending-program-attendance.service';
 
 @Module({
   imports: [
     MailModule,
+    LedgerModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -32,6 +35,7 @@ import { ConfiguredAdminAccessService } from './configured-admin-access.service'
     GoogleAuthService,
     AvatarBridgeTokenService,
     ConfiguredAdminAccessService,
+    PendingProgramAttendanceService,
     PasswordHashingService,
     TokenPairService,
     OneTimeTokenService,

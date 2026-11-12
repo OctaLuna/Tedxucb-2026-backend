@@ -48,6 +48,8 @@ model User {
   createdProgramAttendanceLinks ProgramAttendanceLink[] @relation("ProgramAttendanceLinkCreatedBy")
   programAttendances            ProgramAttendance[]
   programEnrollments            ProgramEnrollment[]
+  pendingProgramAttendanceClaims PendingProgramAttendanceClaim[] @relation("PendingProgramAttendanceClaimUser")
+  programAttendanceNotifications ProgramAttendanceNotification[]
   createdLiveActivities         EventLiveActivity[]     @relation("EventLiveActivityCreatedBy")
   updatedLiveActivities         EventLiveActivity[]     @relation("EventLiveActivityUpdatedBy")
   reviewedApplications          SpeakerApplication[]
@@ -400,6 +402,8 @@ model EventProgramItem {
   enrollments     ProgramEnrollment[]
   attendances     ProgramAttendance[]
   attendanceLinks ProgramAttendanceLink[]
+  pendingAttendanceClaims PendingProgramAttendanceClaim[]
+  attendanceNotifications ProgramAttendanceNotification[]
   activity        Activity?
 
   @@unique([id, eventId])
@@ -450,6 +454,43 @@ model ProgramAttendanceLink {
 
   @@index([programItemId, revokedAt])
   @@map("program_attendance_links")
+}
+
+model PendingProgramAttendanceClaim {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  emailNormalized        String    @map("email_normalized")
+  programItemId          String    @map("program_item_id") @db.Uuid
+  attendancePoints       Int       @default(0) @map("attendance_points")
+  exhibitorBonusPoints   Int       @default(0) @map("exhibitor_bonus_points")
+  status                 String    @default("PENDING")
+  source                 String    @default("MANUAL_ROSTER")
+  claimedById            String?   @map("claimed_by_id") @db.Uuid
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  claimedAt              DateTime? @map("claimed_at") @db.Timestamptz
+
+  programItem EventProgramItem @relation(fields: [programItemId], references: [id], onDelete: Restrict)
+  claimedBy   User?            @relation("PendingProgramAttendanceClaimUser", fields: [claimedById], references: [id], onDelete: Restrict)
+
+  @@unique([emailNormalized, programItemId])
+  @@index([status, emailNormalized])
+  @@map("pending_program_attendance_claims")
+}
+
+model ProgramAttendanceNotification {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  programItemId String    @map("program_item_id") @db.Uuid
+  kind          String
+  points        Int
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programItem EventProgramItem @relation(fields: [programItemId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, programItemId, kind])
+  @@index([userId, acknowledgedAt, createdAt])
+  @@map("program_attendance_notifications")
 }
 
 model EventLiveSettings {
