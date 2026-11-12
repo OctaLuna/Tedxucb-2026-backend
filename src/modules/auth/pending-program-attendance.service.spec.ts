@@ -41,7 +41,10 @@ describe('PendingProgramAttendanceService', () => {
       expect.objectContaining({ points: 10, type: 'ACTIVITY', idempotencyKey: 'checkin:activity-1:user-1', programAttendanceId: 'attendance-1' }),
       expect.objectContaining({ points: 15, type: 'BONUS', idempotencyKey: 'program-attendance-exhibitor:item-1:user-1' }),
     ]));
-    expect(tx.programAttendanceNotification.create.mock.calls.map(([input]: any) => input.data.kind)).toEqual(['ATTENDANCE', 'EXHIBITOR']);
+    expect(tx.programAttendanceNotification.create.mock.calls.map(([input]: any) => input.data)).toEqual([
+      { userId: 'user-1', programItemId: 'item-1', kind: 'ATTENDANCE', points: 10, deferUntilAvatarSaved: true },
+      { userId: 'user-1', programItemId: 'item-1', kind: 'EXHIBITOR', points: 15, deferUntilAvatarSaved: true },
+    ]);
     expect(tx.pendingProgramAttendanceClaim.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'claim-1' }, data: expect.objectContaining({ status: 'CLAIMED', claimedById: 'user-1' }) }));
   });
 
@@ -54,7 +57,9 @@ describe('PendingProgramAttendanceService', () => {
     expect(tx.programAttendance.create).not.toHaveBeenCalled();
     expect(ledger.recordMovement).toHaveBeenCalledTimes(1);
     expect(ledger.recordMovement.mock.calls[0][1]).toMatchObject({ type: 'BONUS', points: 15, idempotencyKey: 'program-attendance-exhibitor:item-1:user-1' });
-    expect(tx.programAttendanceNotification.create).toHaveBeenCalledWith({ data: { userId: 'user-1', programItemId: 'item-1', kind: 'EXHIBITOR', points: 15 } });
+    expect(tx.programAttendanceNotification.create).toHaveBeenCalledWith({ data: {
+      userId: 'user-1', programItemId: 'item-1', kind: 'EXHIBITOR', points: 15, deferUntilAvatarSaved: true,
+    } });
   });
 
   it('does not process non-student or inactive accounts', async () => {
